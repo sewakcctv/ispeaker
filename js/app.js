@@ -211,7 +211,7 @@ class iSpeakerApp {
 
     this.dom.outputGainSlider.addEventListener('input', e => {
       const val = parseFloat(e.target.value);
-      this.dom.outputGainVal.textContent = `${Math.round(val * 100)}%`;
+      this.dom.outputGainVal.textContent = `${val.toFixed(2)}×`;
       this.router.setOutputGain(val);
     });
 
@@ -307,7 +307,7 @@ class iSpeakerApp {
       const stats = await this.router.start({
         inputDeviceId:  this.dom.inputSelect.value,
         outputDeviceId: this.dom.outputSelect.value,
-        inputGain:      parseFloat(this.dom.inputGainSlider.value),
+          inputGain:      parseFloat(this.dom.inputGainSlider.value),
         outputGain:     parseFloat(this.dom.outputGainSlider.value),
       });
 

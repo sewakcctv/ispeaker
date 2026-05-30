@@ -1,11 +1,14 @@
-const CACHE = 'ispeaker-v1';
+const CACHE = 'ispeaker-v2';
+// Use the service worker's own scope so paths work on any subdirectory
+// (e.g. GitHub Pages at /ispeaker/ vs a root domain)
+const BASE = new URL('./', self.registration.scope).href;
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/js/app.js',
-  '/manifest.json',
-  '/icon.svg',
+  BASE,
+  BASE + 'index.html',
+  BASE + 'css/style.css',
+  BASE + 'js/app.js',
+  BASE + 'manifest.json',
+  BASE + 'icon.svg',
 ];
 
 self.addEventListener('install', e => {
