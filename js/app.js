@@ -1,6 +1,8 @@
 'use strict';
 
-// ─── iSpeaker: Real-time Bluetooth Audio Router ───────────────────────────────
+// ─── Audio Router ─────────────────────────────────────────────────────────────
+// Chain: source → inputGain → inputAnalyser → gateGain → HPF → compressor
+//        → outputGain → outputAnalyser → destination
 
 class AudioRouter {
   constructor() {
@@ -8,16 +10,23 @@ class AudioRouter {
     this.stream = null;
     this.sourceNode = null;
     this.inputGainNode = null;
+    this.inputAnalyserNode = null;
+    this.gateGainNode = null;
+    this.hpfNode = null;
+    this.compressorNode = null;
     this.outputGainNode = null;
-    this.analyserNode = null;
+    this.outputAnalyserNode = null;
     this.streamDest = null;
     this.outputAudioEl = null;
-    this.outputMethod = null; // 'sinkId-context' | 'sinkId-element' | 'default'
+    this.outputMethod = null;
+
+    this._gateEnabled = true;
+    this._gateThreshold = -40;
+    this._gateOpen = true;
   }
 
   async start({ inputDeviceId, outputDeviceId, inputGain, outputGain }) {
-    // Capture from selected mic with lowest possible latency settings
-    const constraints = {
+    this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
         echoCancellation: false,
@@ -27,32 +36,52 @@ class AudioRouter {
         channelCount: 1,
       },
       video: false,
-    };
-
-    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    });
 
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
 
-    // Nodes
     this.sourceNode = this.ctx.createMediaStreamSource(this.stream);
+
     this.inputGainNode = this.ctx.createGain();
     this.inputGainNode.gain.value = inputGain;
-    this.analyserNode = this.ctx.createAnalyser();
-    this.analyserNode.fftSize = 512;
-    this.analyserNode.smoothingTimeConstant = 0.6;
+
+    this.inputAnalyserNode = this.ctx.createAnalyser();
+    this.inputAnalyserNode.fftSize = 512;
+    this.inputAnalyserNode.smoothingTimeConstant = 0.3;
+
+    this.gateGainNode = this.ctx.createGain();
+    this.gateGainNode.gain.value = 1.0;
+
+    this.hpfNode = this.ctx.createBiquadFilter();
+    this.hpfNode.type = 'highpass';
+    this.hpfNode.frequency.value = 80;
+    this.hpfNode.Q.value = 0.7;
+
+    this.compressorNode = this.ctx.createDynamicsCompressor();
+    this.compressorNode.threshold.value = -24;
+    this.compressorNode.knee.value = 12;
+    this.compressorNode.ratio.value = 4;
+    this.compressorNode.attack.value = 0.003;
+    this.compressorNode.release.value = 0.25;
+
     this.outputGainNode = this.ctx.createGain();
     this.outputGainNode.gain.value = outputGain;
 
-    // source → inputGain → analyser → outputGain → [ output ]
+    this.outputAnalyserNode = this.ctx.createAnalyser();
+    this.outputAnalyserNode.fftSize = 512;
+    this.outputAnalyserNode.smoothingTimeConstant = 0.3;
+
     this.sourceNode.connect(this.inputGainNode);
-    this.inputGainNode.connect(this.analyserNode);
-    this.analyserNode.connect(this.outputGainNode);
+    this.inputGainNode.connect(this.inputAnalyserNode);
+    this.inputAnalyserNode.connect(this.gateGainNode);
+    this.gateGainNode.connect(this.hpfNode);
+    this.hpfNode.connect(this.compressorNode);
+    this.compressorNode.connect(this.outputGainNode);
+    this.outputGainNode.connect(this.outputAnalyserNode);
 
     this.outputMethod = await this._routeOutput(outputDeviceId);
 
-    if (this.ctx.state === 'suspended') {
-      await this.ctx.resume();
-    }
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
 
     return {
       sampleRate: this.ctx.sampleRate,
@@ -63,27 +92,21 @@ class AudioRouter {
 
   async _routeOutput(outputDeviceId) {
     if (!outputDeviceId) {
-      // Default system output
-      this.outputGainNode.connect(this.ctx.destination);
+      this.outputAnalyserNode.connect(this.ctx.destination);
       return 'default';
     }
 
-    // Method 1: AudioContext.setSinkId() — Chrome 110+, most efficient
     if (typeof this.ctx.setSinkId === 'function') {
       try {
         await this.ctx.setSinkId(outputDeviceId);
-        this.outputGainNode.connect(this.ctx.destination);
+        this.outputAnalyserNode.connect(this.ctx.destination);
         return 'sinkId-context';
-      } catch (_) {
-        // fall through
-      }
+      } catch (_) {}
     }
 
-    // Method 2: HTMLAudioElement.setSinkId() — broader support
     if (typeof HTMLAudioElement !== 'undefined' && 'setSinkId' in HTMLAudioElement.prototype) {
       this.streamDest = this.ctx.createMediaStreamDestination();
-      this.outputGainNode.connect(this.streamDest);
-
+      this.outputAnalyserNode.connect(this.streamDest);
       this.outputAudioEl = new Audio();
       this.outputAudioEl.srcObject = this.streamDest.stream;
       await this.outputAudioEl.setSinkId(outputDeviceId);
@@ -91,8 +114,7 @@ class AudioRouter {
       return 'sinkId-element';
     }
 
-    // Fallback: default output, warn caller
-    this.outputGainNode.connect(this.ctx.destination);
+    this.outputAnalyserNode.connect(this.ctx.destination);
     return 'default-fallback';
   }
 
@@ -110,36 +132,96 @@ class AudioRouter {
       this.ctx.close();
       this.ctx = null;
     }
-    this.sourceNode = this.inputGainNode = this.outputGainNode = null;
-    this.analyserNode = this.streamDest = null;
+    this.sourceNode = this.inputGainNode = this.inputAnalyserNode = null;
+    this.gateGainNode = this.hpfNode = this.compressorNode = null;
+    this.outputGainNode = this.outputAnalyserNode = this.streamDest = null;
+    this._gateOpen = true;
   }
 
-  setInputGain(value) {
-    if (this.inputGainNode) this.inputGainNode.gain.value = value;
+  setInputGain(v)  { if (this.inputGainNode)  this.inputGainNode.gain.value = v; }
+  setOutputGain(v) { if (this.outputGainNode) this.outputGainNode.gain.value = v; }
+
+  setHPF(enabled) {
+    if (!this.hpfNode) return;
+    // 10 Hz is below audible range — effectively a transparent bypass
+    this.hpfNode.frequency.setTargetAtTime(enabled ? 80 : 10, this.ctx.currentTime, 0.01);
   }
 
-  setOutputGain(value) {
-    if (this.outputGainNode) this.outputGainNode.gain.value = value;
+  setCompressor(enabled) {
+    if (!this.compressorNode) return;
+    if (enabled) {
+      this.compressorNode.threshold.setTargetAtTime(-24, this.ctx.currentTime, 0.05);
+      this.compressorNode.ratio.setTargetAtTime(4, this.ctx.currentTime, 0.05);
+    } else {
+      this.compressorNode.threshold.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+      this.compressorNode.ratio.setTargetAtTime(1, this.ctx.currentTime, 0.05);
+    }
   }
 
-  getAnalyser() {
-    return this.analyserNode;
+  setGate(enabled, threshold) {
+    this._gateEnabled = enabled;
+    this._gateThreshold = threshold;
+    if (!enabled && this.gateGainNode) {
+      this.gateGainNode.gain.setTargetAtTime(1.0, this.ctx.currentTime, 0.01);
+      this._gateOpen = true;
+    }
   }
 
-  get isActive() {
-    return this.ctx !== null && this.ctx.state === 'running';
+  // Called every animation frame; returns whether gate is currently open.
+  processGate(inputDb) {
+    if (!this.gateGainNode || !this.ctx) return true;
+    if (!this._gateEnabled) return true;
+
+    const shouldOpen = inputDb > this._gateThreshold;
+    if (shouldOpen !== this._gateOpen) {
+      this._gateOpen = shouldOpen;
+      // Fast attack (5 ms), slower release (150 ms) to avoid click artifacts
+      this.gateGainNode.gain.setTargetAtTime(
+        shouldOpen ? 1.0 : 0.0,
+        this.ctx.currentTime,
+        shouldOpen ? 0.005 : 0.15,
+      );
+    }
+    return this._gateOpen;
   }
+
+  getInputAnalyser()  { return this.inputAnalyserNode; }
+  getOutputAnalyser() { return this.outputAnalyserNode; }
+  get isActive() { return this.ctx !== null && this.ctx.state === 'running'; }
+}
+
+// ─── Wake Lock ────────────────────────────────────────────────────────────────
+
+class WakeLockManager {
+  constructor() {
+    this.lock = null;
+    this.supported = 'wakeLock' in navigator;
+  }
+
+  async acquire() {
+    if (!this.supported) return false;
+    try {
+      this.lock = await navigator.wakeLock.request('screen');
+      this.lock.addEventListener('release', () => { this.lock = null; });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  release() {
+    if (this.lock) { this.lock.release(); this.lock = null; }
+  }
+
+  get isActive() { return this.lock !== null; }
 }
 
 // ─── Device Manager ───────────────────────────────────────────────────────────
 
 class DeviceManager {
-  constructor() {
-    this.hasPermission = false;
-  }
+  constructor() { this.hasPermission = false; }
 
   async requestPermission() {
-    // getUserMedia triggers the browser permission prompt and labels devices
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     stream.getTracks().forEach(t => t.stop());
     this.hasPermission = true;
@@ -158,10 +240,12 @@ class DeviceManager {
 
 class iSpeakerApp {
   constructor() {
-    this.router = new AudioRouter();
-    this.devices = new DeviceManager();
-    this.running = false;
+    this.router   = new AudioRouter();
+    this.devices  = new DeviceManager();
+    this.wakeLock = new WakeLockManager();
+    this.running  = false;
     this.animFrame = null;
+    this._timeBuf  = null;
 
     this._cacheDom();
     this._bindEvents();
@@ -169,32 +253,42 @@ class iSpeakerApp {
   }
 
   _cacheDom() {
+    const $ = id => document.getElementById(id);
     this.dom = {
-      browserAlert:    document.getElementById('browserAlert'),
-      browserAlertTxt: document.getElementById('browserAlertText'),
-      permAlert:       document.getElementById('permissionAlert'),
-      grantBtn:        document.getElementById('grantPermBtn'),
-      refreshBtn:      document.getElementById('refreshBtn'),
-      inputSelect:     document.getElementById('inputSelect'),
-      outputSelect:    document.getElementById('outputSelect'),
-      inputGainSlider: document.getElementById('inputGain'),
-      outputGainSlider:document.getElementById('outputGain'),
-      inputGainVal:    document.getElementById('inputGainVal'),
-      outputGainVal:   document.getElementById('outputGainVal'),
-      inputMeterBar:   document.getElementById('inputMeterBar'),
-      outputMeterBar:  document.getElementById('outputMeterBar'),
-      inputDbVal:      document.getElementById('inputDbVal'),
-      outputDbVal:     document.getElementById('outputDbVal'),
-      statsSection:    document.getElementById('statsSection'),
-      statLatency:     document.getElementById('statLatency'),
-      statSampleRate:  document.getElementById('statSampleRate'),
-      statOutputMethod:document.getElementById('statOutputMethod'),
-      statState:       document.getElementById('statState'),
-      startBtn:        document.getElementById('startBtn'),
-      startBtnText:    document.getElementById('startBtnText'),
-      startIcon:       document.getElementById('startIcon'),
-      statusDot:       document.getElementById('statusDot'),
-      statusText:      document.getElementById('statusText'),
+      browserAlert:     $('browserAlert'),
+      browserAlertTxt:  $('browserAlertText'),
+      permAlert:        $('permissionAlert'),
+      grantBtn:         $('grantPermBtn'),
+      refreshBtn:       $('refreshBtn'),
+      inputSelect:      $('inputSelect'),
+      outputSelect:     $('outputSelect'),
+      inputGainSlider:  $('inputGain'),
+      outputGainSlider: $('outputGain'),
+      inputGainVal:     $('inputGainVal'),
+      outputGainVal:    $('outputGainVal'),
+      hpfToggle:        $('hpfToggle'),
+      compToggle:       $('compToggle'),
+      gateToggle:       $('gateToggle'),
+      gateThreshRow:    $('gateThresholdRow'),
+      gateThreshold:    $('gateThreshold'),
+      gateThreshVal:    $('gateThresholdVal'),
+      gateStatusDot:    $('gateStatusDot'),
+      gateStatusText:   $('gateStatusText'),
+      inputMeterBar:    $('inputMeterBar'),
+      outputMeterBar:   $('outputMeterBar'),
+      inputDbVal:       $('inputDbVal'),
+      outputDbVal:      $('outputDbVal'),
+      statsSection:     $('statsSection'),
+      statLatency:      $('statLatency'),
+      statSampleRate:   $('statSampleRate'),
+      statOutputMethod: $('statOutputMethod'),
+      statState:        $('statState'),
+      startBtn:         $('startBtn'),
+      startBtnText:     $('startBtnText'),
+      startIcon:        $('startIcon'),
+      statusDot:        $('statusDot'),
+      statusText:       $('statusText'),
+      wakeLockBadge:    $('wakeLockBadge'),
     };
   }
 
@@ -204,18 +298,47 @@ class iSpeakerApp {
     this.dom.startBtn.addEventListener('click', () => this._toggleRouting());
 
     this.dom.inputGainSlider.addEventListener('input', e => {
-      const val = parseFloat(e.target.value);
-      this.dom.inputGainVal.textContent = `${val.toFixed(2)}×`;
-      this.router.setInputGain(val);
+      const v = parseFloat(e.target.value);
+      this.dom.inputGainVal.textContent = `${v.toFixed(2)}×`;
+      this.router.setInputGain(v);
     });
 
     this.dom.outputGainSlider.addEventListener('input', e => {
-      const val = parseFloat(e.target.value);
-      this.dom.outputGainVal.textContent = `${val.toFixed(2)}×`;
-      this.router.setOutputGain(val);
+      const v = parseFloat(e.target.value);
+      this.dom.outputGainVal.textContent = `${v.toFixed(2)}×`;
+      this.router.setOutputGain(v);
+    });
+
+    this.dom.hpfToggle.addEventListener('change', e => {
+      this.router.setHPF(e.target.checked);
+    });
+
+    this.dom.compToggle.addEventListener('change', e => {
+      this.router.setCompressor(e.target.checked);
+    });
+
+    this.dom.gateToggle.addEventListener('change', e => {
+      const on = e.target.checked;
+      this.dom.gateThreshRow.hidden = !on;
+      this.router.setGate(on, parseFloat(this.dom.gateThreshold.value));
+      if (!on) this._updateGateStatus(true);
+    });
+
+    this.dom.gateThreshold.addEventListener('input', e => {
+      const v = parseInt(e.target.value);
+      this.dom.gateThreshVal.textContent = `${v} dB`;
+      this.router.setGate(this.dom.gateToggle.checked, v);
     });
 
     navigator.mediaDevices?.addEventListener('devicechange', () => this._loadDevices());
+
+    // Re-acquire wake lock after tab returns to foreground (OS releases it on hide)
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible' && this.running) {
+        await this.wakeLock.acquire();
+        this._updateWakeLockBadge();
+      }
+    });
   }
 
   _checkBrowserSupport() {
@@ -228,22 +351,19 @@ class iSpeakerApp {
 
     if (issues.length) {
       this.dom.browserAlert.hidden = false;
-      this.dom.browserAlertTxt.textContent = issues.join('. ') + '. Please use Chrome or Edge on HTTPS.';
+      this.dom.browserAlertTxt.textContent =
+        issues.join('. ') + '. Please use Chrome or Edge on HTTPS.';
       return;
     }
 
-    const hasOutputRouting = (
-      typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype
-    ) || (
-      typeof HTMLAudioElement !== 'undefined' && 'setSinkId' in HTMLAudioElement.prototype
-    );
+    const hasOutputRouting =
+      (typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype) ||
+      (typeof HTMLAudioElement !== 'undefined' && 'setSinkId' in HTMLAudioElement.prototype);
 
     if (!hasOutputRouting) {
       this.dom.permAlert.hidden = false;
       this.dom.permAlert.querySelector('#permissionAlertText').textContent =
-        'This browser cannot route audio to a specific output device. Output will use system default. Use Chrome or Edge for full device selection.';
-      this.dom.grantBtn.textContent = 'Got it';
-      this.dom.grantBtn.addEventListener('click', () => { this.dom.permAlert.hidden = true; }, { once: true });
+        'This browser cannot route to a specific output device. Use Chrome or Edge for full device selection.';
     }
 
     this._requestPermission();
@@ -257,7 +377,7 @@ class iSpeakerApp {
       await this._loadDevices();
       this._setStatus('Ready — select devices and press Start', 'ready');
       this.dom.startBtn.disabled = false;
-    } catch (err) {
+    } catch {
       this.dom.permAlert.hidden = false;
       this._setStatus('Microphone permission denied', 'error');
     }
@@ -265,18 +385,15 @@ class iSpeakerApp {
 
   async _loadDevices() {
     if (!this.devices.hasPermission) return;
-
     const { inputs, outputs } = await this.devices.getDevices();
-
-    this._populateSelect(this.dom.inputSelect, inputs, 'Default Microphone', false);
-    this._populateSelect(this.dom.outputSelect, outputs, 'Default Speaker', false);
-
+    this._populateSelect(this.dom.inputSelect,  inputs,  'Default Microphone');
+    this._populateSelect(this.dom.outputSelect, outputs, 'Default Speaker');
     this.dom.inputSelect.disabled = false;
     this.dom.outputSelect.disabled = false;
   }
 
-  _populateSelect(select, devices, defaultLabel, disabled) {
-    const prevVal = select.value;
+  _populateSelect(select, devices, defaultLabel) {
+    const prev = select.value;
     select.innerHTML = `<option value="">— ${defaultLabel} —</option>`;
     devices.forEach(d => {
       const opt = document.createElement('option');
@@ -284,19 +401,12 @@ class iSpeakerApp {
       opt.textContent = d.label || `Device (${d.deviceId.slice(0, 8)}…)`;
       select.appendChild(opt);
     });
-    // Restore previous selection if still available
-    if (prevVal && select.querySelector(`option[value="${prevVal}"]`)) {
-      select.value = prevVal;
-    }
-    select.disabled = disabled;
+    if (prev && select.querySelector(`option[value="${prev}"]`)) select.value = prev;
   }
 
   async _toggleRouting() {
-    if (this.running) {
-      this._stopRouting();
-    } else {
-      await this._startRouting();
-    }
+    if (this.running) this._stopRouting();
+    else await this._startRouting();
   }
 
   async _startRouting() {
@@ -307,13 +417,20 @@ class iSpeakerApp {
       const stats = await this.router.start({
         inputDeviceId:  this.dom.inputSelect.value,
         outputDeviceId: this.dom.outputSelect.value,
-          inputGain:      parseFloat(this.dom.inputGainSlider.value),
+        inputGain:      parseFloat(this.dom.inputGainSlider.value),
         outputGain:     parseFloat(this.dom.outputGainSlider.value),
       });
+
+      this.router.setHPF(this.dom.hpfToggle.checked);
+      this.router.setCompressor(this.dom.compToggle.checked);
+      this.router.setGate(this.dom.gateToggle.checked, parseFloat(this.dom.gateThreshold.value));
 
       this.running = true;
       this._setRunningState(true, stats);
       this._startMeterLoop();
+
+      await this.wakeLock.acquire();
+      this._updateWakeLockBadge();
 
     } catch (err) {
       this._setStatus(`Error: ${err.message}`, 'error');
@@ -325,38 +442,36 @@ class iSpeakerApp {
     this.router.stop();
     this.running = false;
     cancelAnimationFrame(this.animFrame);
+    this.wakeLock.release();
     this._setRunningState(false, null);
     this._resetMeters();
+    this._updateWakeLockBadge();
   }
 
   _setRunningState(isRunning, stats) {
     this.dom.startBtn.disabled = false;
     this.dom.startBtn.classList.toggle('running', isRunning);
     this.dom.startBtnText.textContent = isRunning ? 'Stop Routing' : 'Start Routing';
-
-    // Swap play/stop icon
     this.dom.startIcon.innerHTML = isRunning
       ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
       : '<path d="M8 5v14l11-7z"/>';
 
     if (isRunning && stats) {
       const latencyMs = stats.baseLatency != null
-        ? `${(stats.baseLatency * 1000).toFixed(1)} ms (Web Audio only; add BT latency)`
+        ? `${(stats.baseLatency * 1000).toFixed(1)} ms (Web Audio only)`
         : 'Unknown';
-
       const methodLabel = {
         'sinkId-context':  'AudioContext.setSinkId ✓',
         'sinkId-element':  'HTMLAudio.setSinkId ✓',
         'default':         'System default',
-        'default-fallback':'System default (setSinkId unsupported)',
+        'default-fallback':'System default (no setSinkId)',
       }[stats.outputMethod] ?? stats.outputMethod;
 
-      this.dom.statLatency.textContent = latencyMs;
-      this.dom.statSampleRate.textContent = `${stats.sampleRate.toLocaleString()} Hz`;
+      this.dom.statLatency.textContent      = latencyMs;
+      this.dom.statSampleRate.textContent   = `${stats.sampleRate.toLocaleString()} Hz`;
       this.dom.statOutputMethod.textContent = methodLabel;
-      this.dom.statState.textContent = 'Routing ▶';
-      this.dom.statsSection.hidden = false;
-
+      this.dom.statState.textContent        = 'Routing ▶';
+      this.dom.statsSection.hidden          = false;
       this._setStatus('Routing live audio', 'active');
     } else {
       this.dom.statsSection.hidden = true;
@@ -364,68 +479,72 @@ class iSpeakerApp {
     }
   }
 
-  // ─── Level Metering ──────────────────────────────────────
+  // ── Metering & Gate ───────────────────────────────────
 
   _startMeterLoop() {
-    const analyser = this.router.getAnalyser();
-    if (!analyser) return;
+    const inA  = this.router.getInputAnalyser();
+    const outA = this.router.getOutputAnalyser();
+    if (!inA || !outA) return;
 
-    const bufLen = analyser.frequencyBinCount;
-    const timeBuf = new Float32Array(analyser.fftSize);
+    this._timeBuf = new Float32Array(inA.fftSize);
 
     const tick = () => {
       if (!this.running) return;
       this.animFrame = requestAnimationFrame(tick);
 
-      analyser.getFloatTimeDomainData(timeBuf);
-      const inputRms = this._rms(timeBuf);
-      const inputDb  = this._toDb(inputRms);
-      const pct      = this._dbToPct(inputDb);
+      // Input level (pre-gate, used also for gate decisions)
+      inA.getFloatTimeDomainData(this._timeBuf);
+      const inputDb = this._toDb(this._rms(this._timeBuf));
 
-      this.dom.inputMeterBar.style.width = `${pct}%`;
-      this.dom.inputDbVal.textContent = isFinite(inputDb) ? `${inputDb.toFixed(0)} dB` : '—';
+      const gateOpen = this.router.processGate(inputDb);
+      if (this.dom.gateToggle.checked) this._updateGateStatus(gateOpen);
 
-      // Output mirrors input after gain
-      const outGain = parseFloat(this.dom.outputGainSlider.value);
-      const outRms  = inputRms * outGain;
-      const outDb   = this._toDb(outRms);
-      const outPct  = this._dbToPct(outDb);
+      this.dom.inputMeterBar.style.width = `${this._dbToPct(inputDb)}%`;
+      this.dom.inputDbVal.textContent    = isFinite(inputDb) ? `${inputDb.toFixed(0)} dB` : '—';
 
-      this.dom.outputMeterBar.style.width = `${outPct}%`;
-      this.dom.outputDbVal.textContent = isFinite(outDb) ? `${outDb.toFixed(0)} dB` : '—';
+      // Output level (post all processing)
+      outA.getFloatTimeDomainData(this._timeBuf);
+      const outputDb = this._toDb(this._rms(this._timeBuf));
+
+      this.dom.outputMeterBar.style.width = `${this._dbToPct(outputDb)}%`;
+      this.dom.outputDbVal.textContent    = isFinite(outputDb) ? `${outputDb.toFixed(0)} dB` : '—';
     };
 
     tick();
   }
 
   _resetMeters() {
-    this.dom.inputMeterBar.style.width = '0%';
+    this.dom.inputMeterBar.style.width  = '0%';
     this.dom.outputMeterBar.style.width = '0%';
-    this.dom.inputDbVal.textContent = '—';
-    this.dom.outputDbVal.textContent = '—';
+    this.dom.inputDbVal.textContent     = '—';
+    this.dom.outputDbVal.textContent    = '—';
+    this._updateGateStatus(true);
   }
+
+  _updateGateStatus(open) {
+    this.dom.gateStatusDot.className    = `gate-dot ${open ? 'gate-open' : 'gate-closed'}`;
+    this.dom.gateStatusText.textContent = open ? 'Open' : 'Muted';
+  }
+
+  _updateWakeLockBadge() {
+    this.dom.wakeLockBadge.hidden = !this.wakeLock.isActive;
+  }
+
+  // ── Math Helpers ──────────────────────────────────────
 
   _rms(buf) {
-    let sum = 0;
-    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-    return Math.sqrt(sum / buf.length);
+    let s = 0;
+    for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+    return Math.sqrt(s / buf.length);
   }
 
-  _toDb(rms) {
-    return rms > 0 ? 20 * Math.log10(rms) : -Infinity;
-  }
+  _toDb(rms) { return rms > 0 ? 20 * Math.log10(rms) : -Infinity; }
 
-  _dbToPct(db) {
-    // Map -60dB → 0%, 0dB → 100%
-    const clamped = Math.max(-60, Math.min(0, db));
-    return ((clamped + 60) / 60) * 100;
-  }
-
-  // ─── Status ──────────────────────────────────────────────
+  _dbToPct(db) { return ((Math.max(-60, Math.min(0, db)) + 60) / 60) * 100; }
 
   _setStatus(msg, type) {
     this.dom.statusText.textContent = msg;
-    this.dom.statusDot.className = 'status-dot dot-' + type;
+    this.dom.statusDot.className    = 'status-dot dot-' + type;
   }
 }
 
@@ -437,10 +556,8 @@ if (document.readyState === 'loading') {
   new iSpeakerApp();
 }
 
-// ─── Service Worker Registration ──────────────────────────────────────────────
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }

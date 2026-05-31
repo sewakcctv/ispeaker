@@ -118,6 +118,53 @@
         </div>
       </section>
 
+      <!-- Audio Processing -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
+          Processing
+        </h2>
+        <div class="process-list">
+
+          <div class="process-row">
+            <div class="process-info">
+              <span class="process-name">High-pass Filter</span>
+              <span class="process-desc">Cuts rumble &amp; handling noise below 80 Hz</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
+          </div>
+
+          <div class="process-row">
+            <div class="process-info">
+              <span class="process-name">Compressor</span>
+              <span class="process-desc">Evens out volume, prevents clipping</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
+          </div>
+
+          <div class="process-row">
+            <div class="process-info">
+              <span class="process-name">Noise Gate</span>
+              <span class="process-desc">Mutes background noise when not speaking</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="gateToggle" checked><span class="toggle-track"></span></label>
+          </div>
+
+          <div class="process-sub" id="gateThresholdRow">
+            <div class="gain-header">
+              <label for="gateThreshold">Gate Threshold</label>
+              <div class="gate-status-row">
+                <span id="gateStatusDot" class="gate-dot gate-open"></span>
+                <span id="gateStatusText" class="gate-status-text">Open</span>
+                <span id="gateThresholdVal" class="gain-value">-40 dB</span>
+              </div>
+            </div>
+            <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
+          </div>
+
+        </div>
+      </section>
+
       <!-- Level Meters -->
       <section class="card meters-section">
         <h2 class="card-title">
@@ -178,6 +225,10 @@
         <div class="status-row">
           <div id="statusDot" class="status-dot dot-idle"></div>
           <span id="statusText" class="status-text">Waiting for permissions…</span>
+          <div id="wakeLockBadge" class="wakelock-badge" hidden>
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+            Screen Awake
+          </div>
         </div>
       </div>
 
