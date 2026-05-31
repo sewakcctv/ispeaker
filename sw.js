@@ -1,4 +1,4 @@
-const CACHE = 'ispeaker-v3';
+const CACHE = 'ispeaker-v4';
 // Use the service worker's own scope so paths work on any subdirectory
 // (e.g. GitHub Pages at /ispeaker/ vs a root domain)
 const BASE = new URL('./', self.registration.scope).href;

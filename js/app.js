@@ -40,6 +40,14 @@ class AudioRouter {
 
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
 
+    // Auto-resume if the browser suspends the context (e.g. tab backgrounded)
+    this._shouldRun = true;
+    this.ctx.addEventListener('statechange', () => {
+      if (this._shouldRun && this.ctx?.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    });
+
     this.sourceNode = this.ctx.createMediaStreamSource(this.stream);
 
     this.inputGainNode = this.ctx.createGain();
@@ -119,6 +127,7 @@ class AudioRouter {
   }
 
   stop() {
+    this._shouldRun = false;
     if (this.outputAudioEl) {
       this.outputAudioEl.pause();
       this.outputAudioEl.srcObject = null;
@@ -289,6 +298,7 @@ class iSpeakerApp {
       statusDot:        $('statusDot'),
       statusText:       $('statusText'),
       wakeLockBadge:    $('wakeLockBadge'),
+      statBgAudio:      $('statBgAudio'),
     };
   }
 
@@ -428,6 +438,7 @@ class iSpeakerApp {
       this.running = true;
       this._setRunningState(true, stats);
       this._startMeterLoop();
+      this._registerMediaSession();
 
       await this.wakeLock.acquire();
       this._updateWakeLockBadge();
@@ -443,9 +454,32 @@ class iSpeakerApp {
     this.running = false;
     cancelAnimationFrame(this.animFrame);
     this.wakeLock.release();
+    this._clearMediaSession();
     this._setRunningState(false, null);
     this._resetMeters();
     this._updateWakeLockBadge();
+  }
+
+  _registerMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'iSpeaker',
+      artist: 'Live Audio Routing Active',
+      album: 'iSpeaker — Bluetooth Audio Router',
+      artwork: [{ src: './icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+    });
+    navigator.mediaSession.playbackState = 'playing';
+    // Stop button on the lock screen / notification shade maps to stopping the routing
+    navigator.mediaSession.setActionHandler('stop',  () => this._stopRouting());
+    navigator.mediaSession.setActionHandler('pause', () => this._stopRouting());
+  }
+
+  _clearMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = 'none';
+    for (const action of ['stop', 'pause', 'play']) {
+      try { navigator.mediaSession.setActionHandler(action, null); } catch {}
+    }
   }
 
   _setRunningState(isRunning, stats) {
@@ -467,10 +501,15 @@ class iSpeakerApp {
         'default-fallback':'System default (no setSinkId)',
       }[stats.outputMethod] ?? stats.outputMethod;
 
+      const bgAudio = 'mediaSession' in navigator
+        ? 'Active — switch apps freely'
+        : 'Not supported (stay on screen)';
+
       this.dom.statLatency.textContent      = latencyMs;
       this.dom.statSampleRate.textContent   = `${stats.sampleRate.toLocaleString()} Hz`;
       this.dom.statOutputMethod.textContent = methodLabel;
       this.dom.statState.textContent        = 'Routing ▶';
+      this.dom.statBgAudio.textContent      = bgAudio;
       this.dom.statsSection.hidden          = false;
       this._setStatus('Routing live audio', 'active');
     } else {
