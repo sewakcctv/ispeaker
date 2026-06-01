@@ -100,7 +100,7 @@ class AudioRouter {
   }
 
   async _routeOutput(outputDeviceId) {
-    // Try AudioContext.setSinkId (Chrome 110+) for a named output device
+    // 1. AudioContext.setSinkId — Chrome 110+, most direct
     if (outputDeviceId && typeof this.ctx.setSinkId === 'function') {
       try {
         await this.ctx.setSinkId(outputDeviceId);
@@ -109,27 +109,35 @@ class AudioRouter {
       } catch (_) {}
     }
 
-    // Route via <audio> element so we can call setSinkId on it, and because
-    // an audio element properly activates the iOS standalone PWA audio session.
-    // We use the pre-unlocked element created synchronously in the button click
-    // (before any awaits) — this satisfies iOS gesture policy for play().
+    // 2. HTMLAudioElement.setSinkId — routes to a specific output device
+    //    Always use a FRESH element here, not the unlock element
+    if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
+      this.streamDest = this.ctx.createMediaStreamDestination();
+      this.outputAnalyserNode.connect(this.streamDest);
+      this.outputAudioEl = new Audio();
+      this.outputAudioEl.srcObject = this.streamDest.stream;
+      try {
+        await this.outputAudioEl.setSinkId(outputDeviceId);
+        await this.outputAudioEl.play();
+        return 'sinkId-element';
+      } catch (_) {
+        this.outputAnalyserNode.disconnect(this.streamDest);
+        this.streamDest = null;
+        this.outputAudioEl = null;
+      }
+    }
+
+    // 3. Default output — use the pre-unlocked element (helps iOS standalone PWA),
+    //    fall back to ctx.destination if play() is still blocked (iOS Safari browser)
     this.streamDest = this.ctx.createMediaStreamDestination();
     this.outputAnalyserNode.connect(this.streamDest);
-
     this.outputAudioEl = this._unlockAudio || new Audio();
     this._unlockAudio = null;
     this.outputAudioEl.srcObject = this.streamDest.stream;
-
-    if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
-      try { await this.outputAudioEl.setSinkId(outputDeviceId); } catch (_) {}
-    }
-
     try {
       await this.outputAudioEl.play();
-      return outputDeviceId ? 'sinkId-element' : 'default';
+      return 'default';
     } catch {
-      // play() still blocked (e.g. iOS browser strict policy) —
-      // fall back to ctx.destination which works in iOS Safari browser
       this.outputAudioEl = null;
       this.outputAnalyserNode.disconnect(this.streamDest);
       this.streamDest = null;
