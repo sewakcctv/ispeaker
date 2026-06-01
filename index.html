@@ -94,74 +94,60 @@
         <p class="device-hint">Pair your Bluetooth devices at the OS level first, then they'll appear here.</p>
       </section>
 
-      <!-- Gain Controls -->
+      <!-- Volume Controls -->
       <section class="card">
         <h2 class="card-title">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/></svg>
-          Gain Controls
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414z"/></svg>
+          Volume
         </h2>
         <div class="gain-grid">
           <div class="gain-control">
             <div class="gain-header">
-              <label for="inputGain">Input Gain</label>
-              <span id="inputGainVal" class="gain-value">2.0×</span>
+              <label for="outputGain">Speaker Volume</label>
+              <span id="outputGainVal" class="gain-value">100%</span>
             </div>
-            <input type="range" id="inputGain" class="slider" min="0" max="4" step="0.05" value="2">
+            <input type="range" id="outputGain" class="slider" min="0" max="4" step="0.05" value="1">
           </div>
           <div class="gain-control">
             <div class="gain-header">
-              <label for="outputGain">Output Gain</label>
-              <span id="outputGainVal" class="gain-value">2.0×</span>
+              <label for="inputGain">Mic Boost</label>
+              <span id="inputGainVal" class="gain-value">150%</span>
             </div>
-            <input type="range" id="outputGain" class="slider" min="0" max="4" step="0.05" value="2">
+            <input type="range" id="inputGain" class="slider" min="0" max="4" step="0.05" value="1.5">
           </div>
         </div>
       </section>
 
-      <!-- Audio Processing -->
+      <!-- Audio Enhancement -->
       <section class="card">
         <h2 class="card-title">
           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
-          Processing
+          Audio Enhancement
         </h2>
-        <div class="process-list">
-
-          <div class="process-row">
-            <div class="process-info">
-              <span class="process-name">High-pass Filter</span>
-              <span class="process-desc">Cuts rumble &amp; handling noise below 80 Hz</span>
-            </div>
+        <div class="enhance-row">
+          <div class="enhance-item">
+            <span class="enhance-label">Filter</span>
             <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
           </div>
-
-          <div class="process-row">
-            <div class="process-info">
-              <span class="process-name">Compressor</span>
-              <span class="process-desc">Evens out volume, prevents clipping</span>
-            </div>
+          <div class="enhance-item">
+            <span class="enhance-label">Compressor</span>
             <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
           </div>
-
-          <div class="process-row">
-            <div class="process-info">
-              <span class="process-name">Noise Gate</span>
-              <span class="process-desc">Mutes background noise when not speaking</span>
-            </div>
+          <div class="enhance-item">
+            <span class="enhance-label">Noise Gate</span>
             <label class="toggle"><input type="checkbox" id="gateToggle" checked><span class="toggle-track"></span></label>
           </div>
-
-          <div class="process-sub" id="gateThresholdRow">
-            <div class="gain-header">
-              <label for="gateThreshold">Gate Threshold</label>
-              <div class="gate-status-row">
-                <span id="gateStatusDot" class="gate-dot gate-open"></span>
-                <span id="gateStatusText" class="gate-status-text">Open</span>
-                <span id="gateThresholdVal" class="gain-value">-40 dB</span>
-              </div>
+        </div>
+        <div class="process-sub" id="gateThresholdRow">
+          <div class="gain-header">
+            <label for="gateThreshold">Gate Threshold</label>
+            <div class="gate-status-row">
+              <span id="gateStatusDot" class="gate-dot gate-open"></span>
+              <span id="gateStatusText" class="gate-status-text">Open</span>
+              <span id="gateThresholdVal" class="gain-value">-40 dB</span>
             </div>
-            <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
           </div>
-
+          <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
         </div>
       </section>
 
@@ -189,36 +175,6 @@
         </div>
       </section>
 
-      <!-- Stats -->
-      <section class="card stats-section" id="statsSection" hidden>
-        <h2 class="card-title">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-          Session Stats
-        </h2>
-        <div class="stats-grid">
-          <div class="stat">
-            <span class="stat-label">Latency</span>
-            <span id="statLatency" class="stat-value">—</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Sample Rate</span>
-            <span id="statSampleRate" class="stat-value">—</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Output Routing</span>
-            <span id="statOutputMethod" class="stat-value">—</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">State</span>
-            <span id="statState" class="stat-value">—</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Background Audio</span>
-            <span id="statBgAudio" class="stat-value">—</span>
-          </div>
-        </div>
-      </section>
-
       <!-- Start / Stop -->
       <div class="action-panel">
         <button id="startBtn" class="btn btn-start" disabled>
@@ -240,7 +196,7 @@
       <div class="info-box">
         <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
         <p>Bluetooth adds <strong>40–300 ms</strong> of inherent latency (aptX LL ≈ 40 ms, SBC ≈ 150–300 ms).
-        On <strong>Android &amp; desktop</strong> you can switch apps freely — routing continues in the background with a notification.
+        On <strong>Android &amp; desktop</strong> you can switch apps freely — routing continues in the background.
         On <strong>iOS</strong> keep the screen on while routing.</p>
       </div>
 

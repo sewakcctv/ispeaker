@@ -99,12 +99,8 @@ class AudioRouter {
   }
 
   async _routeOutput(outputDeviceId) {
-    if (!outputDeviceId) {
-      this.outputAnalyserNode.connect(this.ctx.destination);
-      return 'default';
-    }
-
-    if (typeof this.ctx.setSinkId === 'function') {
+    // Try AudioContext.setSinkId (Chrome 110+ desktop) for specific output device
+    if (outputDeviceId && typeof this.ctx.setSinkId === 'function') {
       try {
         await this.ctx.setSinkId(outputDeviceId);
         this.outputAnalyserNode.connect(this.ctx.destination);
@@ -112,18 +108,21 @@ class AudioRouter {
       } catch (_) {}
     }
 
-    if (typeof HTMLAudioElement !== 'undefined' && 'setSinkId' in HTMLAudioElement.prototype) {
-      this.streamDest = this.ctx.createMediaStreamDestination();
-      this.outputAnalyserNode.connect(this.streamDest);
-      this.outputAudioEl = new Audio();
-      this.outputAudioEl.srcObject = this.streamDest.stream;
+    // Always route via <audio> element for everything else.
+    // Connecting directly to ctx.destination works in desktop browsers but
+    // produces silent output in iOS standalone PWA mode — the audio element
+    // properly activates the iOS audio output session.
+    this.streamDest = this.ctx.createMediaStreamDestination();
+    this.outputAnalyserNode.connect(this.streamDest);
+    this.outputAudioEl = new Audio();
+    this.outputAudioEl.srcObject = this.streamDest.stream;
+
+    if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
       await this.outputAudioEl.setSinkId(outputDeviceId);
-      await this.outputAudioEl.play();
-      return 'sinkId-element';
     }
 
-    this.outputAnalyserNode.connect(this.ctx.destination);
-    return 'default-fallback';
+    await this.outputAudioEl.play();
+    return outputDeviceId ? 'sinkId-element' : 'default';
   }
 
   stop() {
@@ -287,18 +286,12 @@ class iSpeakerApp {
       outputMeterBar:   $('outputMeterBar'),
       inputDbVal:       $('inputDbVal'),
       outputDbVal:      $('outputDbVal'),
-      statsSection:     $('statsSection'),
-      statLatency:      $('statLatency'),
-      statSampleRate:   $('statSampleRate'),
-      statOutputMethod: $('statOutputMethod'),
-      statState:        $('statState'),
       startBtn:         $('startBtn'),
       startBtnText:     $('startBtnText'),
       startIcon:        $('startIcon'),
       statusDot:        $('statusDot'),
       statusText:       $('statusText'),
       wakeLockBadge:    $('wakeLockBadge'),
-      statBgAudio:      $('statBgAudio'),
     };
   }
 
@@ -309,13 +302,13 @@ class iSpeakerApp {
 
     this.dom.inputGainSlider.addEventListener('input', e => {
       const v = parseFloat(e.target.value);
-      this.dom.inputGainVal.textContent = `${v.toFixed(2)}×`;
+      this.dom.inputGainVal.textContent = `${Math.round(v * 100)}%`;
       this.router.setInputGain(v);
     });
 
     this.dom.outputGainSlider.addEventListener('input', e => {
       const v = parseFloat(e.target.value);
-      this.dom.outputGainVal.textContent = `${v.toFixed(2)}×`;
+      this.dom.outputGainVal.textContent = `${Math.round(v * 100)}%`;
       this.router.setOutputGain(v);
     });
 
@@ -490,30 +483,9 @@ class iSpeakerApp {
       ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
       : '<path d="M8 5v14l11-7z"/>';
 
-    if (isRunning && stats) {
-      const latencyMs = stats.baseLatency != null
-        ? `${(stats.baseLatency * 1000).toFixed(1)} ms (Web Audio only)`
-        : 'Unknown';
-      const methodLabel = {
-        'sinkId-context':  'AudioContext.setSinkId ✓',
-        'sinkId-element':  'HTMLAudio.setSinkId ✓',
-        'default':         'System default',
-        'default-fallback':'System default (no setSinkId)',
-      }[stats.outputMethod] ?? stats.outputMethod;
-
-      const bgAudio = 'mediaSession' in navigator
-        ? 'Active — switch apps freely'
-        : 'Not supported (stay on screen)';
-
-      this.dom.statLatency.textContent      = latencyMs;
-      this.dom.statSampleRate.textContent   = `${stats.sampleRate.toLocaleString()} Hz`;
-      this.dom.statOutputMethod.textContent = methodLabel;
-      this.dom.statState.textContent        = 'Routing ▶';
-      this.dom.statBgAudio.textContent      = bgAudio;
-      this.dom.statsSection.hidden          = false;
+    if (isRunning) {
       this._setStatus('Routing live audio', 'active');
     } else {
-      this.dom.statsSection.hidden = true;
       this._setStatus('Stopped', 'ready');
     }
   }
