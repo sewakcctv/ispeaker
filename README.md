@@ -25,12 +25,13 @@ Use cases:
 ## Features
 
 - **Live audio routing** — real-time passthrough with minimal software latency
-- **Device picker** — lists all paired Bluetooth (and wired) audio devices
-- **Input gain control** — boost a quiet mic up to 4×
-- **Output volume control** — independent output level
-- **Live level meters** — visual VU meters with dB readout
-- **Session stats** — shows sample rate, latency, and output routing method
-- **Installable PWA** — works offline, add to home screen on Android/desktop
+- **Device picker** — lists only connected Bluetooth (and wired) audio devices; virtual/duplicate OS entries are filtered out automatically
+- **Speaker Volume & Mic Boost** — independent controls up to 4× each
+- **Live level meters** — visual IN/OUT meters with dB readout
+- **Audio enhancement** (Advanced Settings) — High-pass filter, dynamics compressor, and noise gate with adjustable threshold
+- **Background audio** — routing continues even when the screen is locked or you switch apps (Android & desktop)
+- **Screen Wake Lock** — keeps the display on while routing so the session isn't interrupted
+- **Installable PWA** — works offline, add to home screen on Android and iOS
 - **No app install, no account, no backend** — runs entirely in your browser
 
 ---
@@ -108,12 +109,15 @@ Open `http://localhost:8080` in Chrome. HTTPS is required for mic access on publ
 
 ```
 ispeaker/
-├── index.html       # App shell and UI
-├── css/style.css    # Styles (dark theme)
-├── js/app.js        # Audio routing logic (Web Audio API)
-├── manifest.json    # PWA manifest
-├── sw.js            # Service worker (offline support)
-└── icon.svg         # App icon
+├── index.html           # App shell and UI
+├── css/style.css        # Styles (dark theme)
+├── js/app.js            # Audio routing logic (Web Audio API)
+├── manifest.json        # PWA manifest
+├── sw.js                # Service worker (offline support)
+├── icon.svg             # Source icon (vector)
+├── icon-192.png         # Android launcher icon
+├── icon-512.png         # Android splash / high-res icon
+└── apple-touch-icon.png # iOS home screen icon
 ```
 
 ---
