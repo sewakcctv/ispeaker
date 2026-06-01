@@ -25,7 +25,8 @@ class AudioRouter {
     this._gateOpen = true;
   }
 
-  async start({ inputDeviceId, outputDeviceId, inputGain, outputGain }) {
+  async start({ inputDeviceId, outputDeviceId, inputGain, outputGain, unlockAudio }) {
+    this._unlockAudio = unlockAudio || null;
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: inputDeviceId ? { exact: inputDeviceId } : undefined,
@@ -99,7 +100,7 @@ class AudioRouter {
   }
 
   async _routeOutput(outputDeviceId) {
-    // Try AudioContext.setSinkId (Chrome 110+ desktop) for specific output device
+    // Try AudioContext.setSinkId (Chrome 110+) for a named output device
     if (outputDeviceId && typeof this.ctx.setSinkId === 'function') {
       try {
         await this.ctx.setSinkId(outputDeviceId);
@@ -108,21 +109,33 @@ class AudioRouter {
       } catch (_) {}
     }
 
-    // Always route via <audio> element for everything else.
-    // Connecting directly to ctx.destination works in desktop browsers but
-    // produces silent output in iOS standalone PWA mode — the audio element
-    // properly activates the iOS audio output session.
+    // Route via <audio> element so we can call setSinkId on it, and because
+    // an audio element properly activates the iOS standalone PWA audio session.
+    // We use the pre-unlocked element created synchronously in the button click
+    // (before any awaits) — this satisfies iOS gesture policy for play().
     this.streamDest = this.ctx.createMediaStreamDestination();
     this.outputAnalyserNode.connect(this.streamDest);
-    this.outputAudioEl = new Audio();
+
+    this.outputAudioEl = this._unlockAudio || new Audio();
+    this._unlockAudio = null;
     this.outputAudioEl.srcObject = this.streamDest.stream;
 
     if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
-      await this.outputAudioEl.setSinkId(outputDeviceId);
+      try { await this.outputAudioEl.setSinkId(outputDeviceId); } catch (_) {}
     }
 
-    await this.outputAudioEl.play();
-    return outputDeviceId ? 'sinkId-element' : 'default';
+    try {
+      await this.outputAudioEl.play();
+      return outputDeviceId ? 'sinkId-element' : 'default';
+    } catch {
+      // play() still blocked (e.g. iOS browser strict policy) —
+      // fall back to ctx.destination which works in iOS Safari browser
+      this.outputAudioEl = null;
+      this.outputAnalyserNode.disconnect(this.streamDest);
+      this.streamDest = null;
+      this.outputAnalyserNode.connect(this.ctx.destination);
+      return 'default-fallback';
+    }
   }
 
   stop() {
@@ -416,12 +429,21 @@ class iSpeakerApp {
     this.dom.startBtn.disabled = true;
     this._setStatus('Starting audio pipeline…', 'idle');
 
+    // Create and "touch" an audio element here, synchronously within the
+    // button-click gesture. iOS requires audio.play() to be initiated within
+    // a user gesture — after any await the gesture context is lost.
+    // play() will reject (no source yet) but the element becomes unlocked,
+    // so the real play() call inside the router will succeed.
+    const unlockAudio = new Audio();
+    unlockAudio.play().catch(() => {});
+
     try {
       const stats = await this.router.start({
         inputDeviceId:  this.dom.inputSelect.value,
         outputDeviceId: this.dom.outputSelect.value,
         inputGain:      parseFloat(this.dom.inputGainSlider.value),
         outputGain:     parseFloat(this.dom.outputGainSlider.value),
+        unlockAudio,
       });
 
       this.router.setHPF(this.dom.hpfToggle.checked);
