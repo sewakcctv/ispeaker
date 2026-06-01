@@ -6,13 +6,13 @@
   <title>iSpeaker — Bluetooth Audio Router</title>
   <meta name="description" content="Route live audio from any Bluetooth mic to any Bluetooth speaker with zero fuss.">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0d0d14">
+  <meta name="theme-color" content="#0d0d1e">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="iSpeaker">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -20,21 +20,24 @@
 
     <header class="header">
       <div class="logo">
-        <svg class="logo-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="18" cy="18" r="16" stroke="url(#lg)" stroke-width="2"/>
-          <path d="M11 13.5h4.5L21 9v18l-5.5-4.5H11v-9z" fill="currentColor"/>
-          <path d="M24 13c1.8 1.6 1.8 8.4 0 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <path d="M27 10.5c3 2.8 3 12.2 0 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <svg class="logo-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="lg" x1="2" y1="2" x2="34" y2="34">
-              <stop stop-color="#3b82f6"/>
-              <stop offset="1" stop-color="#8b5cf6"/>
+            <linearGradient id="lgi" x1="0" y1="0" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#60a5fa"/>
+              <stop offset="1" stop-color="#a78bfa"/>
             </linearGradient>
           </defs>
+          <!-- Speaker + waves -->
+          <path d="M6 17 L6 27 L15 27 L24.5 33 L24.5 11 L15 17 Z" fill="url(#lgi)"/>
+          <path d="M27 17 C32 19.5 32 24.5 27 27" stroke="url(#lgi)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M31 14 C38 17.5 38 26.5 31 30" stroke="url(#lgi)" stroke-width="2.2" stroke-linecap="round" opacity="0.62"/>
+          <path d="M35 11 C44 15.5 44 28.5 35 33" stroke="url(#lgi)" stroke-width="1.8" stroke-linecap="round" opacity="0.35"/>
         </svg>
-        <span class="logo-text">iSpeaker</span>
+        <div class="logo-text-group">
+          <span class="logo-text">iSpeaker</span>
+          <span class="tagline">Bluetooth Audio Router</span>
+        </div>
       </div>
-      <span class="tagline">Live Bluetooth Audio Router</span>
     </header>
 
     <main class="main">
@@ -76,7 +79,9 @@
 
           <div class="route-arrow">
             <div class="route-line"></div>
-            <svg class="route-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            <div class="route-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+            </div>
             <div class="route-line"></div>
           </div>
 
@@ -91,7 +96,7 @@
           </div>
         </div>
 
-        <p class="device-hint">Pair your Bluetooth devices at the OS level first, then they'll appear here.</p>
+        <p class="device-hint">Pair your Bluetooth devices at the OS level first, then Refresh.</p>
       </section>
 
       <!-- Volume Controls -->
@@ -115,39 +120,6 @@
             </div>
             <input type="range" id="inputGain" class="slider" min="0" max="4" step="0.05" value="1.5">
           </div>
-        </div>
-      </section>
-
-      <!-- Audio Enhancement -->
-      <section class="card">
-        <h2 class="card-title">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
-          Audio Enhancement
-        </h2>
-        <div class="enhance-row">
-          <div class="enhance-item">
-            <span class="enhance-label">Filter</span>
-            <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
-          </div>
-          <div class="enhance-item">
-            <span class="enhance-label">Compressor</span>
-            <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
-          </div>
-          <div class="enhance-item">
-            <span class="enhance-label">Noise Gate</span>
-            <label class="toggle"><input type="checkbox" id="gateToggle" checked><span class="toggle-track"></span></label>
-          </div>
-        </div>
-        <div class="process-sub" id="gateThresholdRow">
-          <div class="gain-header">
-            <label for="gateThreshold">Gate Threshold</label>
-            <div class="gate-status-row">
-              <span id="gateStatusDot" class="gate-dot gate-open"></span>
-              <span id="gateStatusText" class="gate-status-text">Open</span>
-              <span id="gateThresholdVal" class="gain-value">-40 dB</span>
-            </div>
-          </div>
-          <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
         </div>
       </section>
 
@@ -192,10 +164,48 @@
         </div>
       </div>
 
+      <!-- Advanced Settings (Audio Enhancement) -->
+      <details class="adv-details">
+        <summary class="adv-summary">
+          <div class="adv-summary-inner">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
+            Advanced Settings
+          </div>
+          <svg class="adv-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        </summary>
+        <div class="adv-body">
+          <div class="enhance-row">
+            <div class="enhance-item">
+              <span class="enhance-label">High-Pass Filter</span>
+              <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="enhance-item">
+              <span class="enhance-label">Compressor</span>
+              <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
+            </div>
+            <div class="enhance-item">
+              <span class="enhance-label">Noise Gate</span>
+              <label class="toggle"><input type="checkbox" id="gateToggle"><span class="toggle-track"></span></label>
+            </div>
+          </div>
+          <div class="process-sub" id="gateThresholdRow" hidden>
+            <div class="gain-header">
+              <label for="gateThreshold">Gate Threshold</label>
+              <div class="gate-status-row">
+                <span id="gateStatusDot" class="gate-dot gate-open"></span>
+                <span id="gateStatusText" class="gate-status-text">Open</span>
+                <span id="gateThresholdVal" class="gain-value">-40 dB</span>
+              </div>
+            </div>
+            <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
+          </div>
+        </div>
+      </details>
+
       <!-- Info -->
       <div class="info-box">
         <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-        <p>Bluetooth adds <strong>40–300 ms</strong> of inherent latency (aptX LL ≈ 40 ms, SBC ≈ 150–300 ms).
+        <p>Bluetooth adds <strong>40–300 ms</strong> of inherent latency.
         On <strong>Android &amp; desktop</strong> you can switch apps freely — routing continues in the background.
         On <strong>iOS</strong> keep the screen on while routing.</p>
       </div>

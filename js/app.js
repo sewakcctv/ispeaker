@@ -20,7 +20,7 @@ class AudioRouter {
     this.outputAudioEl = null;
     this.outputMethod = null;
 
-    this._gateEnabled = true;
+    this._gateEnabled = false;
     this._gateThreshold = -40;
     this._gateOpen = true;
   }
@@ -258,10 +258,37 @@ class DeviceManager {
 
   async getDevices() {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    return {
-      inputs:  devices.filter(d => d.kind === 'audioinput'),
-      outputs: devices.filter(d => d.kind === 'audiooutput'),
-    };
+    const inputs  = this._filterDevices(devices.filter(d => d.kind === 'audioinput'));
+    const outputs = this._filterDevices(devices.filter(d => d.kind === 'audiooutput'));
+    return { inputs, outputs };
+  }
+
+  // Remove virtual/low-quality mode duplicates (Headset, Receiver, Speakerphone, HFP).
+  // These are alternate OS-level profiles of the same physical device, never what
+  // the user wants for audio routing. Only kept if no "real" entry for that device exists.
+  _filterDevices(devices) {
+    const VIRTUAL_RE = /\s*\((Headset|Receiver|Speakerphone|HFP|Handsfree)\)\s*$/i;
+
+    // Skip Windows "communications" virtual default device
+    const list = devices.filter(d => d.deviceId !== 'communications');
+
+    const realBases = new Set();
+    for (const d of list) {
+      if (!VIRTUAL_RE.test(d.label || '')) {
+        realBases.add(this._deviceBase(d.label));
+      }
+    }
+
+    const filtered = list.filter(d => {
+      if (!VIRTUAL_RE.test(d.label || '')) return true;
+      return !realBases.has(this._deviceBase(d.label));
+    });
+
+    return filtered.length ? filtered : list;
+  }
+
+  _deviceBase(label) {
+    return (label || '').replace(/\s*\(.*\)\s*$/, '').trim().toLowerCase();
   }
 }
 
@@ -278,6 +305,7 @@ class iSpeakerApp {
 
     this._cacheDom();
     this._bindEvents();
+    this._initSliders();
     this._checkBrowserSupport();
   }
 
@@ -324,12 +352,14 @@ class iSpeakerApp {
     this.dom.inputGainSlider.addEventListener('input', e => {
       const v = parseFloat(e.target.value);
       this.dom.inputGainVal.textContent = `${Math.round(v * 100)}%`;
+      this._setSliderFill(e.target);
       this.router.setInputGain(v);
     });
 
     this.dom.outputGainSlider.addEventListener('input', e => {
       const v = parseFloat(e.target.value);
       this.dom.outputGainVal.textContent = `${Math.round(v * 100)}%`;
+      this._setSliderFill(e.target);
       this.router.setOutputGain(v);
     });
 
@@ -351,6 +381,7 @@ class iSpeakerApp {
     this.dom.gateThreshold.addEventListener('input', e => {
       const v = parseInt(e.target.value);
       this.dom.gateThreshVal.textContent = `${v} dB`;
+      this._setSliderFill(e.target);
       this.router.setGate(this.dom.gateToggle.checked, v);
     });
 
@@ -363,6 +394,17 @@ class iSpeakerApp {
         this._updateWakeLockBadge();
       }
     });
+  }
+
+  _setSliderFill(el) {
+    const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+    el.style.setProperty('--sl-fill', `${pct}%`);
+  }
+
+  _initSliders() {
+    for (const el of [this.dom.inputGainSlider, this.dom.outputGainSlider, this.dom.gateThreshold]) {
+      this._setSliderFill(el);
+    }
   }
 
   _checkBrowserSupport() {

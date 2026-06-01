@@ -1,4 +1,4 @@
-const CACHE = 'ispeaker-v8';
+const CACHE = 'ispeaker-v9';
 const BASE = new URL('./', self.registration.scope).href;
 const ASSETS = [
   BASE,
@@ -7,6 +7,9 @@ const ASSETS = [
   BASE + 'js/app.js',
   BASE + 'manifest.json',
   BASE + 'icon.svg',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
+  BASE + 'apple-touch-icon.png',
 ];
 
 self.addEventListener('install', e => {
@@ -26,8 +29,6 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
 
-  // For any page navigation within our scope, always serve index.html.
-  // This prevents 404s regardless of exactly which URL the OS launches.
   if (e.request.mode === 'navigate') {
     e.respondWith(
       caches.match(BASE + 'index.html')
@@ -36,7 +37,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // For assets, cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
