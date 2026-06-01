@@ -27,7 +27,6 @@
               <stop offset="1" stop-color="#a78bfa"/>
             </linearGradient>
           </defs>
-          <!-- Speaker + waves -->
           <path d="M6 17 L6 27 L15 27 L24.5 33 L24.5 11 L15 17 Z" fill="url(#lgi)"/>
           <path d="M27 17 C32 19.5 32 24.5 27 27" stroke="url(#lgi)" stroke-width="2.5" stroke-linecap="round"/>
           <path d="M31 14 C38 17.5 38 26.5 31 30" stroke="url(#lgi)" stroke-width="2.2" stroke-linecap="round" opacity="0.62"/>
@@ -42,173 +41,249 @@
 
     <main class="main">
 
-      <div id="browserAlert" class="alert alert-error" hidden>
-        <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-        <span id="browserAlertText"></span>
-      </div>
+      <!-- ── LISTENER PANEL — shown when ?join= param present ───────────────── -->
+      <div id="listenerPanel" hidden>
 
-      <div id="permissionAlert" class="alert alert-warning" hidden>
-        <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-        <span id="permissionAlertText">Microphone permission is needed to see and use audio devices.</span>
-        <button id="grantPermBtn" class="btn btn-sm btn-outline">Grant Access</button>
-      </div>
-
-      <!-- Device Selection -->
-      <section class="card">
-        <div class="card-header">
-          <h2 class="card-title">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"/></svg>
-            Audio Devices
-          </h2>
-          <button id="refreshBtn" class="btn btn-ghost btn-sm" title="Refresh device list">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
-            Refresh
-          </button>
-        </div>
-
-        <div class="device-list">
-          <div class="device-row">
-            <div class="device-badge badge-input">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
-              MIC IN
-            </div>
-            <select id="inputSelect" class="device-select" disabled>
-              <option value="">— Waiting for permission —</option>
-            </select>
+        <div class="card listen-hero">
+          <div class="listen-room-info">
+            <span class="listen-room-label">Live Room</span>
+            <span id="listenRoomCode" class="listen-room-code">------</span>
           </div>
-
-          <div class="route-arrow">
-            <div class="route-line"></div>
-            <div class="route-pill">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
-            </div>
-            <div class="route-line"></div>
-          </div>
-
-          <div class="device-row">
-            <div class="device-badge badge-output">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"/></svg>
-              SPK OUT
-            </div>
-            <select id="outputSelect" class="device-select" disabled>
-              <option value="">— Waiting for permission —</option>
-            </select>
+          <div class="status-row">
+            <div id="listenDot" class="status-dot dot-idle"></div>
+            <span id="listenStatusTxt" class="status-text">Tap below to join</span>
           </div>
         </div>
 
-        <p class="device-hint">Pair your Bluetooth devices at the OS level first, then Refresh.</p>
-      </section>
-
-      <!-- Volume Controls -->
-      <section class="card">
-        <h2 class="card-title">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414z"/></svg>
-          Volume
-        </h2>
-        <div class="gain-grid">
-          <div class="gain-control">
-            <div class="gain-header">
-              <label for="outputGain">Speaker Volume</label>
-              <span id="outputGainVal" class="gain-value">100%</span>
-            </div>
-            <input type="range" id="outputGain" class="slider" min="0" max="4" step="0.05" value="1">
-          </div>
-          <div class="gain-control">
-            <div class="gain-header">
-              <label for="inputGain">Mic Boost</label>
-              <span id="inputGainVal" class="gain-value">150%</span>
-            </div>
-            <input type="range" id="inputGain" class="slider" min="0" max="4" step="0.05" value="1.5">
-          </div>
-        </div>
-      </section>
-
-      <!-- Level Meters -->
-      <section class="card meters-section">
-        <h2 class="card-title">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-          Level Monitor
-        </h2>
-        <div class="meters">
-          <div class="meter">
-            <span class="meter-label">IN</span>
-            <div class="meter-track">
-              <div id="inputMeterBar" class="meter-bar" style="width:0%"></div>
-            </div>
-            <span id="inputDbVal" class="meter-db">—</span>
-          </div>
-          <div class="meter">
-            <span class="meter-label">OUT</span>
-            <div class="meter-track">
-              <div id="outputMeterBar" class="meter-bar" style="width:0%"></div>
-            </div>
-            <span id="outputDbVal" class="meter-db">—</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Start / Stop -->
-      <div class="action-panel">
-        <button id="startBtn" class="btn btn-start" disabled>
-          <svg id="startIcon" class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          <span id="startBtnText">Start Routing</span>
+        <button id="listenJoinBtn" class="btn btn-start listen-join-btn">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+          Join &amp; Listen
         </button>
 
-        <div class="status-row">
-          <div id="statusDot" class="status-dot dot-idle"></div>
-          <span id="statusText" class="status-text">Waiting for permissions…</span>
-          <div id="wakeLockBadge" class="wakelock-badge" hidden>
-            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
-            Screen Awake
+        <section id="listenOutputCard" class="card" hidden>
+          <h2 class="card-title">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414z"/></svg>
+            Output
+          </h2>
+          <div class="device-row">
+            <div class="device-badge badge-output">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414z"/></svg>
+              SPK OUT
+            </div>
+            <select id="listenOutputSel" class="device-select">
+              <option value="">— Default Speaker —</option>
+            </select>
           </div>
+          <div class="gain-control">
+            <div class="gain-header">
+              <label for="listenVolume">Volume</label>
+              <span id="listenVolumeVal" class="gain-value">100%</span>
+            </div>
+            <input type="range" id="listenVolume" class="slider" min="0" max="1" step="0.02" value="1">
+          </div>
+        </section>
+
+        <div class="info-box">
+          <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          <p>Audio streams directly from the host to your device — no servers involved. For best results pair your Bluetooth speaker at the OS level before joining.</p>
         </div>
+
       </div>
 
-      <!-- Advanced Settings (Audio Enhancement) -->
-      <details class="adv-details">
-        <summary class="adv-summary">
-          <div class="adv-summary-inner">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
-            Advanced Settings
+      <!-- ── HOST CONTENT ───────────────────────────────────────────────────── -->
+      <div id="hostContent">
+
+        <div id="browserAlert" class="alert alert-error" hidden>
+          <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+          <span id="browserAlertText"></span>
+        </div>
+
+        <div id="permissionAlert" class="alert alert-warning" hidden>
+          <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+          <span id="permissionAlertText">Microphone permission is needed to see and use audio devices.</span>
+          <button id="grantPermBtn" class="btn btn-sm btn-outline">Grant Access</button>
+        </div>
+
+        <!-- Device Selection -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"/></svg>
+              Audio Devices
+            </h2>
+            <button id="refreshBtn" class="btn btn-ghost btn-sm" title="Refresh device list">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>
+              Refresh
+            </button>
           </div>
-          <svg class="adv-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-        </summary>
-        <div class="adv-body">
-          <div class="enhance-row">
-            <div class="enhance-item">
-              <span class="enhance-label">High-Pass Filter</span>
-              <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
+          <div class="device-list">
+            <div class="device-row">
+              <div class="device-badge badge-input">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+                MIC IN
+              </div>
+              <select id="inputSelect" class="device-select" disabled>
+                <option value="">— Waiting for permission —</option>
+              </select>
             </div>
-            <div class="enhance-item">
-              <span class="enhance-label">Compressor</span>
-              <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
+            <div class="route-arrow">
+              <div class="route-line"></div>
+              <div class="route-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+              </div>
+              <div class="route-line"></div>
             </div>
-            <div class="enhance-item">
-              <span class="enhance-label">Noise Gate</span>
-              <label class="toggle"><input type="checkbox" id="gateToggle"><span class="toggle-track"></span></label>
+            <div class="device-row">
+              <div class="device-badge badge-output">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"/></svg>
+                SPK OUT
+              </div>
+              <select id="outputSelect" class="device-select" disabled>
+                <option value="">— Waiting for permission —</option>
+              </select>
             </div>
           </div>
-          <div class="process-sub" id="gateThresholdRow" hidden>
-            <div class="gain-header">
-              <label for="gateThreshold">Gate Threshold</label>
-              <div class="gate-status-row">
-                <span id="gateStatusDot" class="gate-dot gate-open"></span>
-                <span id="gateStatusText" class="gate-status-text">Open</span>
-                <span id="gateThresholdVal" class="gain-value">-40 dB</span>
+          <p class="device-hint">Pair your Bluetooth devices at the OS level first, then Refresh.</p>
+        </section>
+
+        <!-- Volume Controls -->
+        <section class="card">
+          <h2 class="card-title">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414z"/></svg>
+            Volume
+          </h2>
+          <div class="gain-grid">
+            <div class="gain-control">
+              <div class="gain-header">
+                <label for="outputGain">Speaker Volume</label>
+                <span id="outputGainVal" class="gain-value">100%</span>
+              </div>
+              <input type="range" id="outputGain" class="slider" min="0" max="4" step="0.05" value="1">
+            </div>
+            <div class="gain-control">
+              <div class="gain-header">
+                <label for="inputGain">Mic Boost</label>
+                <span id="inputGainVal" class="gain-value">150%</span>
+              </div>
+              <input type="range" id="inputGain" class="slider" min="0" max="4" step="0.05" value="1.5">
+            </div>
+          </div>
+        </section>
+
+        <!-- Level Meters -->
+        <section class="card meters-section">
+          <h2 class="card-title">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+            Level Monitor
+          </h2>
+          <div class="meters">
+            <div class="meter">
+              <span class="meter-label">IN</span>
+              <div class="meter-track">
+                <div id="inputMeterBar" class="meter-bar" style="width:0%"></div>
+              </div>
+              <span id="inputDbVal" class="meter-db">—</span>
+            </div>
+            <div class="meter">
+              <span class="meter-label">OUT</span>
+              <div class="meter-track">
+                <div id="outputMeterBar" class="meter-bar" style="width:0%"></div>
+              </div>
+              <span id="outputDbVal" class="meter-db">—</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Start / Stop -->
+        <div class="action-panel">
+          <button id="startBtn" class="btn btn-start" disabled>
+            <svg id="startIcon" class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <span id="startBtnText">Start Routing</span>
+          </button>
+          <div class="status-row">
+            <div id="statusDot" class="status-dot dot-idle"></div>
+            <span id="statusText" class="status-text">Waiting for permissions…</span>
+            <div id="wakeLockBadge" class="wakelock-badge" hidden>
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+              Screen Awake
+            </div>
+          </div>
+        </div>
+
+        <!-- Broadcast Panel (visible only while routing) -->
+        <section id="broadcastPanel" class="card broadcast-card" hidden>
+          <div class="broadcast-header">
+            <div class="broadcast-title-row">
+              <div id="broadcastDot" class="status-dot dot-idle"></div>
+              <span class="card-title" style="text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--text)">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:14px;height:14px"><path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/></svg>
+                Live Broadcast
+              </span>
+              <span id="broadcastStatus" class="broadcast-meta">Not broadcasting</span>
+            </div>
+            <button id="broadcastToggle" class="btn btn-sm btn-ghost">Start</button>
+          </div>
+
+          <div id="broadcastActive" hidden>
+            <div class="room-code-row">
+              <span class="room-code-label">Room Code</span>
+              <span id="roomCodeDisplay" class="room-code-value">------</span>
+            </div>
+            <div class="broadcast-actions">
+              <button id="copyLinkBtn" class="btn btn-sm btn-ghost">Copy Link</button>
+              <span id="listenerBadge" class="listener-badge">0 listening</span>
+            </div>
+            <p class="device-hint" style="text-align:left">Share the code or link — listeners join from any browser.</p>
+          </div>
+        </section>
+
+        <!-- Advanced Settings (Audio Enhancement) -->
+        <details class="adv-details">
+          <summary class="adv-summary">
+            <div class="adv-summary-inner">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z"/></svg>
+              Advanced Settings
+            </div>
+            <svg class="adv-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+          </summary>
+          <div class="adv-body">
+            <div class="enhance-row">
+              <div class="enhance-item">
+                <span class="enhance-label">High-Pass Filter</span>
+                <label class="toggle"><input type="checkbox" id="hpfToggle" checked><span class="toggle-track"></span></label>
+              </div>
+              <div class="enhance-item">
+                <span class="enhance-label">Compressor</span>
+                <label class="toggle"><input type="checkbox" id="compToggle" checked><span class="toggle-track"></span></label>
+              </div>
+              <div class="enhance-item">
+                <span class="enhance-label">Noise Gate</span>
+                <label class="toggle"><input type="checkbox" id="gateToggle"><span class="toggle-track"></span></label>
               </div>
             </div>
-            <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
+            <div class="process-sub" id="gateThresholdRow" hidden>
+              <div class="gain-header">
+                <label for="gateThreshold">Gate Threshold</label>
+                <div class="gate-status-row">
+                  <span id="gateStatusDot" class="gate-dot gate-open"></span>
+                  <span id="gateStatusText" class="gate-status-text">Open</span>
+                  <span id="gateThresholdVal" class="gain-value">-40 dB</span>
+                </div>
+              </div>
+              <input type="range" id="gateThreshold" class="slider" min="-60" max="-10" step="1" value="-40">
+            </div>
           </div>
-        </div>
-      </details>
+        </details>
 
-      <!-- Info -->
-      <div class="info-box">
-        <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-        <p>Bluetooth adds <strong>40–300 ms</strong> of inherent latency.
-        On <strong>Android &amp; desktop</strong> you can switch apps freely — routing continues in the background.
-        On <strong>iOS</strong> keep the screen on while routing.</p>
-      </div>
+        <!-- Info -->
+        <div class="info-box">
+          <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+          <p>Bluetooth adds <strong>40–300 ms</strong> of inherent latency.
+          On <strong>Android &amp; desktop</strong> you can switch apps freely — routing continues in the background.
+          On <strong>iOS</strong> keep the screen on while routing.</p>
+        </div>
+
+      </div><!-- /#hostContent -->
 
     </main>
 
@@ -218,6 +293,10 @@
 
   </div>
 
+  <!-- Firebase compat SDK (signalling only — audio goes P2P, never through Firebase) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="js/broadcast.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

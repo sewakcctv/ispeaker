@@ -164,7 +164,19 @@ class AudioRouter {
     this.sourceNode = this.inputGainNode = this.inputAnalyserNode = null;
     this.gateGainNode = this.hpfNode = this.compressorNode = null;
     this.outputGainNode = this.outputAnalyserNode = this.streamDest = null;
+    this._broadcastDest = null;
     this._gateOpen = true;
+  }
+
+  // Returns a MediaStream of the fully-processed output — used by BroadcastManager.
+  // Taps off outputGainNode so the broadcast reflects the current output volume.
+  getBroadcastStream() {
+    if (!this.ctx || !this.outputGainNode) return null;
+    if (!this._broadcastDest) {
+      this._broadcastDest = this.ctx.createMediaStreamDestination();
+      this.outputGainNode.connect(this._broadcastDest);
+    }
+    return this._broadcastDest.stream;
   }
 
   setInputGain(v)  { if (this.inputGainNode)  this.inputGainNode.gain.value = v; }
@@ -312,6 +324,7 @@ class iSpeakerApp {
   _cacheDom() {
     const $ = id => document.getElementById(id);
     this.dom = {
+      // host UI
       browserAlert:     $('browserAlert'),
       browserAlertTxt:  $('browserAlertText'),
       permAlert:        $('permissionAlert'),
@@ -341,6 +354,26 @@ class iSpeakerApp {
       statusDot:        $('statusDot'),
       statusText:       $('statusText'),
       wakeLockBadge:    $('wakeLockBadge'),
+      hostContent:      $('hostContent'),
+      // broadcast panel (host)
+      broadcastPanel:   $('broadcastPanel'),
+      broadcastToggle:  $('broadcastToggle'),
+      broadcastActive:  $('broadcastActive'),
+      broadcastDot:     $('broadcastDot'),
+      broadcastStatus:  $('broadcastStatus'),
+      roomCodeDisplay:  $('roomCodeDisplay'),
+      copyLinkBtn:      $('copyLinkBtn'),
+      listenerBadge:    $('listenerBadge'),
+      // listener UI
+      listenerPanel:    $('listenerPanel'),
+      listenDot:        $('listenDot'),
+      listenStatusTxt:  $('listenStatusTxt'),
+      listenRoomCode:   $('listenRoomCode'),
+      listenJoinBtn:    $('listenJoinBtn'),
+      listenOutputCard: $('listenOutputCard'),
+      listenOutputSel:  $('listenOutputSel'),
+      listenVolume:     $('listenVolume'),
+      listenVolumeVal:  $('listenVolumeVal'),
     };
   }
 
@@ -394,6 +427,22 @@ class iSpeakerApp {
         this._updateWakeLockBadge();
       }
     });
+
+    // Broadcast toggle
+    this.dom.broadcastToggle.addEventListener('click', () => {
+      if (window.broadcastManager?.broadcasting) this._stopBroadcast();
+      else this._startBroadcast();
+    });
+
+    this.dom.copyLinkBtn.addEventListener('click', () => {
+      const code = window.broadcastManager?.code;
+      if (!code) return;
+      const url = `${location.origin}${location.pathname}?join=${code}`;
+      navigator.clipboard?.writeText(url).then(() => {
+        this.dom.copyLinkBtn.textContent = 'Copied!';
+        setTimeout(() => this.dom.copyLinkBtn.textContent = 'Copy Link', 2000);
+      });
+    });
   }
 
   _setSliderFill(el) {
@@ -430,6 +479,13 @@ class iSpeakerApp {
       this.dom.permAlert.hidden = false;
       this.dom.permAlert.querySelector('#permissionAlertText').textContent =
         'This browser cannot route to a specific output device. Use Chrome or Edge for full device selection.';
+    }
+
+    // Check if this page load is a listener joining a room
+    const joinCode = new URLSearchParams(location.search).get('join');
+    if (joinCode) {
+      this._initListenerMode(joinCode);
+      return;
     }
 
     this._requestPermission();
@@ -515,6 +571,7 @@ class iSpeakerApp {
   }
 
   _stopRouting() {
+    if (window.broadcastManager?.broadcasting) this._stopBroadcast();
     this.router.stop();
     this.running = false;
     cancelAnimationFrame(this.animFrame);
@@ -555,11 +612,144 @@ class iSpeakerApp {
       ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
       : '<path d="M8 5v14l11-7z"/>';
 
+    // Show broadcast panel only while routing is live
+    this.dom.broadcastPanel.hidden = !isRunning;
+    if (!isRunning) {
+      this.dom.broadcastActive.hidden = true;
+      this.dom.broadcastToggle.textContent = 'Start';
+      this.dom.broadcastDot.className = 'status-dot dot-idle';
+      this.dom.broadcastStatus.textContent = 'Not broadcasting';
+    }
+
     if (isRunning) {
       this._setStatus('Routing live audio', 'active');
     } else {
       this._setStatus('Stopped', 'ready');
     }
+  }
+
+  // ── Broadcast (host) ──────────────────────────────────
+
+  async _startBroadcast() {
+    if (!window.broadcastManager) return;
+    const stream = this.router.getBroadcastStream();
+    if (!stream) return;
+
+    this.dom.broadcastToggle.disabled = true;
+    try {
+      const code = await window.broadcastManager.startBroadcast(stream);
+      this.dom.roomCodeDisplay.textContent = code;
+      this.dom.broadcastActive.hidden = false;
+      this.dom.broadcastToggle.textContent = 'Stop';
+      this.dom.broadcastDot.className = 'status-dot dot-active';
+      this.dom.broadcastStatus.textContent = 'Broadcasting';
+      this.dom.listenerBadge.textContent = '0 listening';
+
+      window.broadcastManager.onCount = n => {
+        this.dom.listenerBadge.textContent = `${n} listener${n === 1 ? '' : 's'}`;
+      };
+    } catch (err) {
+      this.dom.broadcastStatus.textContent = `Error: ${err.message}`;
+    }
+    this.dom.broadcastToggle.disabled = false;
+  }
+
+  async _stopBroadcast() {
+    if (!window.broadcastManager) return;
+    await window.broadcastManager.stopBroadcast();
+    this.dom.broadcastActive.hidden = true;
+    this.dom.broadcastToggle.textContent = 'Start';
+    this.dom.broadcastDot.className = 'status-dot dot-idle';
+    this.dom.broadcastStatus.textContent = 'Not broadcasting';
+  }
+
+  // ── Listener mode ──────────────────────────────────────
+
+  _initListenerMode(code) {
+    // Switch UI to listener view
+    this.dom.hostContent.hidden  = true;
+    this.dom.listenerPanel.hidden = false;
+    this.dom.listenRoomCode.textContent = code.toUpperCase();
+
+    let _session  = null; // { lid, lRef }
+    let _audioEl  = null;
+    let _listenGain = 1;
+
+    const setStatus = (state, msg) => {
+      this.dom.listenDot.className = 'status-dot dot-' + state;
+      this.dom.listenStatusTxt.textContent = msg;
+    };
+
+    const onStream = stream => {
+      if (!_audioEl) return;
+      _audioEl.srcObject = stream;
+      _audioEl.volume = _listenGain;
+      _audioEl.play().catch(() => {});
+      this.dom.listenOutputCard.hidden = false;
+      setStatus('active', 'Live — audio playing');
+
+      // Enumerate output devices now that we have the stream context
+      if (navigator.mediaDevices?.enumerateDevices) {
+        navigator.mediaDevices.enumerateDevices().then(devs => {
+          const outputs = devs.filter(d => d.kind === 'audiooutput');
+          const sel = this.dom.listenOutputSel;
+          sel.innerHTML = '<option value="">— Default Speaker —</option>';
+          outputs.forEach(d => {
+            if (d.deviceId === 'default' || d.deviceId === 'communications') return;
+            const o = document.createElement('option');
+            o.value = d.deviceId;
+            o.textContent = d.label || `Speaker (${d.deviceId.slice(0,8)}…)`;
+            sel.appendChild(o);
+          });
+        });
+      }
+    };
+
+    const onStatus = state => {
+      if (state === 'connected')    setStatus('active', 'Connected — waiting for audio…');
+      else if (state === 'ended')   setStatus('idle', 'Broadcast has ended');
+      else if (state === 'failed')  setStatus('error', 'Connection failed — try refreshing');
+      else if (state === 'disconnected') setStatus('error', 'Disconnected');
+    };
+
+    this.dom.listenJoinBtn.addEventListener('click', async () => {
+      this.dom.listenJoinBtn.disabled = true;
+      setStatus('idle', 'Connecting…');
+
+      // Unlock audio element synchronously inside gesture (iOS requirement)
+      _audioEl = new Audio();
+      _audioEl.autoplay = true;
+      _audioEl.play().catch(() => {});
+
+      try {
+        // Optionally get mic permission so device labels appear
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+        if (s) s.getTracks().forEach(t => t.stop());
+
+        _session = await window.broadcastManager.joinRoom(code, onStream, onStatus);
+        setStatus('idle', 'Connected — waiting for audio…');
+        this.dom.listenJoinBtn.hidden = true;
+      } catch (err) {
+        setStatus('error', err.message);
+        this.dom.listenJoinBtn.disabled = false;
+      }
+    });
+
+    // Volume slider
+    this.dom.listenVolume.addEventListener('input', e => {
+      _listenGain = parseFloat(e.target.value);
+      this.dom.listenVolumeVal.textContent = `${Math.round(_listenGain * 100)}%`;
+      this._setSliderFill(e.target);
+      if (_audioEl) _audioEl.volume = Math.min(1, _listenGain);
+    });
+    this._setSliderFill(this.dom.listenVolume);
+
+    // Output device picker
+    this.dom.listenOutputSel.addEventListener('change', async e => {
+      if (_audioEl && 'setSinkId' in _audioEl) {
+        await _audioEl.setSinkId(e.target.value).catch(() => {});
+      }
+    });
   }
 
   // ── Metering & Gate ───────────────────────────────────

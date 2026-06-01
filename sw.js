@@ -1,10 +1,11 @@
-const CACHE = 'ispeaker-v9';
+const CACHE = 'ispeaker-v10';
 const BASE = new URL('./', self.registration.scope).href;
 const ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'css/style.css',
   BASE + 'js/app.js',
+  BASE + 'js/broadcast.js',
   BASE + 'manifest.json',
   BASE + 'icon.svg',
   BASE + 'icon-192.png',
