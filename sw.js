@@ -1,6 +1,4 @@
-const CACHE = 'ispeaker-v4';
-// Use the service worker's own scope so paths work on any subdirectory
-// (e.g. GitHub Pages at /ispeaker/ vs a root domain)
+const CACHE = 'ispeaker-v5';
 const BASE = new URL('./', self.registration.scope).href;
 const ASSETS = [
   BASE,
@@ -27,6 +25,18 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+
+  // For any page navigation within our scope, always serve index.html.
+  // This prevents 404s regardless of exactly which URL the OS launches.
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      caches.match(BASE + 'index.html')
+        .then(cached => cached || fetch(BASE + 'index.html'))
+    );
+    return;
+  }
+
+  // For assets, cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
