@@ -27,9 +27,20 @@ function _db() {
   return window._fbDbInstance;
 }
 
-function _roomCode() {
-  const C = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/I/1 ambiguity
-  return Array.from({ length: 6 }, () => C[Math.floor(Math.random() * C.length)]).join('');
+const _CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/I/1 ambiguity
+const _CODE_KEY   = 'ispeaker_room_code';
+
+function _generateCode() {
+  return Array.from({ length: 6 }, () => _CODE_CHARS[Math.floor(Math.random() * _CODE_CHARS.length)]).join('');
+}
+
+function _getOrCreateCode() {
+  let code = localStorage.getItem(_CODE_KEY);
+  if (!code) {
+    code = _generateCode();
+    localStorage.setItem(_CODE_KEY, code);
+  }
+  return code;
 }
 
 function _uid() {
@@ -48,11 +59,24 @@ class BroadcastManager {
     this.onCount = null; // callback: (connectedCount: number) => void
   }
 
+  // Returns the persistent code stored on this device (even before broadcasting).
+  get persistentCode() {
+    return _getOrCreateCode();
+  }
+
+  // Generate a fresh code and persist it. Cannot reset while actively broadcasting.
+  resetCode() {
+    if (this.broadcasting) return this._code;
+    const code = _generateCode();
+    localStorage.setItem(_CODE_KEY, code);
+    return code;
+  }
+
   // ── HOST: start/stop ──────────────────────────────────
 
   async startBroadcast(audioStream) {
     this._stream = audioStream;
-    this._code   = _roomCode();
+    this._code   = _getOrCreateCode(); // always reuse the same device code
     this._roomRef = _db().ref('rooms/' + this._code);
 
     await this._roomRef.set({ active: true, ts: Date.now() });

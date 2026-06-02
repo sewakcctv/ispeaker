@@ -165,11 +165,11 @@ class AudioRouter {
     this.gateGainNode = this.hpfNode = this.compressorNode = null;
     this.outputGainNode = this.outputAnalyserNode = this.streamDest = null;
     this._broadcastDest = null;
+    this._recordingDest = null;
     this._gateOpen = true;
   }
 
   // Returns a MediaStream of the fully-processed output — used by BroadcastManager.
-  // Taps off outputGainNode so the broadcast reflects the current output volume.
   getBroadcastStream() {
     if (!this.ctx || !this.outputGainNode) return null;
     if (!this._broadcastDest) {
@@ -177,6 +177,16 @@ class AudioRouter {
       this.outputGainNode.connect(this._broadcastDest);
     }
     return this._broadcastDest.stream;
+  }
+
+  // Returns a MediaStream tapped off the processed output — used by RecordingManager.
+  getRecordingStream() {
+    if (!this.ctx || !this.outputGainNode) return null;
+    if (!this._recordingDest) {
+      this._recordingDest = this.ctx.createMediaStreamDestination();
+      this.outputGainNode.connect(this._recordingDest);
+    }
+    return this._recordingDest.stream;
   }
 
   setInputGain(v)  { if (this.inputGainNode)  this.inputGainNode.gain.value = v; }
@@ -231,6 +241,73 @@ class AudioRouter {
   get isActive() { return this.ctx !== null && this.ctx.state === 'running'; }
 }
 
+// ─── Recording Manager ────────────────────────────────────────────────────────
+
+class RecordingManager {
+  constructor() {
+    this._recorder  = null;
+    this._chunks    = [];
+    this._mimeType  = '';
+    this._startTime = null;
+  }
+
+  get supported() { return typeof MediaRecorder !== 'undefined'; }
+  get isRecording() { return this._recorder?.state === 'recording'; }
+
+  get elapsed() {
+    if (!this._startTime) return 0;
+    return Math.floor((Date.now() - this._startTime) / 1000);
+  }
+
+  start(stream) {
+    if (!this.supported) return false;
+    this._mimeType = this._bestMime();
+    this._chunks   = [];
+    try {
+      this._recorder = new MediaRecorder(stream, this._mimeType ? { mimeType: this._mimeType } : {});
+    } catch {
+      this._recorder = new MediaRecorder(stream);
+    }
+    this._recorder.ondataavailable = e => { if (e.data?.size > 0) this._chunks.push(e.data); };
+    this._recorder.start(500);
+    this._startTime = Date.now();
+    return true;
+  }
+
+  stop() {
+    return new Promise(resolve => {
+      if (!this._recorder || this._recorder.state === 'inactive') { resolve(null); return; }
+      this._recorder.onstop = () => {
+        const mime = this._recorder.mimeType || this._mimeType || 'audio/webm';
+        const blob = new Blob(this._chunks, { type: mime });
+        this._chunks    = [];
+        this._startTime = null;
+        this._recorder  = null;
+        resolve(blob);
+      };
+      this._recorder.stop();
+    });
+  }
+
+  download(blob) {
+    const ext  = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+    const ts   = new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+    const name = `ispeaker_${ts}.${ext}`;
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: name });
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+
+  _bestMime() {
+    for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']) {
+      if (MediaRecorder.isTypeSupported?.(t)) return t;
+    }
+    return '';
+  }
+}
+
 // ─── Wake Lock ────────────────────────────────────────────────────────────────
 
 class WakeLockManager {
@@ -276,19 +353,13 @@ class DeviceManager {
   }
 
   // Remove virtual/low-quality mode duplicates (Headset, Receiver, Speakerphone, HFP).
-  // These are alternate OS-level profiles of the same physical device, never what
-  // the user wants for audio routing. Only kept if no "real" entry for that device exists.
   _filterDevices(devices) {
     const VIRTUAL_RE = /\s*\((Headset|Receiver|Speakerphone|HFP|Handsfree)\)\s*$/i;
-
-    // Skip Windows "communications" virtual default device
     const list = devices.filter(d => d.deviceId !== 'communications');
 
     const realBases = new Set();
     for (const d of list) {
-      if (!VIRTUAL_RE.test(d.label || '')) {
-        realBases.add(this._deviceBase(d.label));
-      }
+      if (!VIRTUAL_RE.test(d.label || '')) realBases.add(this._deviceBase(d.label));
     }
 
     const filtered = list.filter(d => {
@@ -308,22 +379,36 @@ class DeviceManager {
 
 class iSpeakerApp {
   constructor() {
-    this.router   = new AudioRouter();
-    this.devices  = new DeviceManager();
-    this.wakeLock = new WakeLockManager();
-    this.running  = false;
+    this.router    = new AudioRouter();
+    this.recorder  = new RecordingManager();
+    this.devices   = new DeviceManager();
+    this.wakeLock  = new WakeLockManager();
+    this.running   = false;
     this.animFrame = null;
     this._timeBuf  = null;
+    this._recTimer = null;
 
     this._cacheDom();
     this._bindEvents();
     this._initSliders();
-    this._checkBrowserSupport();
+    this._init();
   }
 
   _cacheDom() {
     const $ = id => document.getElementById(id);
     this.dom = {
+      // navigation
+      backBtn:          $('backBtn'),
+      settingsBtn:      $('settingsBtn'),
+      tagline:          $('tagline'),
+      // home screen
+      homeScreen:       $('homeScreen'),
+      openRouterBtn:    $('openRouterBtn'),
+      // settings sheet
+      settingsOverlay:  $('settingsOverlay'),
+      closeSettingsBtn: $('closeSettingsBtn'),
+      settingsRoomCode: $('settingsRoomCode'),
+      resetCodeBtn:     $('resetCodeBtn'),
       // host UI
       browserAlert:     $('browserAlert'),
       browserAlertTxt:  $('browserAlertText'),
@@ -355,6 +440,10 @@ class iSpeakerApp {
       statusText:       $('statusText'),
       wakeLockBadge:    $('wakeLockBadge'),
       hostContent:      $('hostContent'),
+      // recording
+      recordBtn:        $('recordBtn'),
+      recordBtnText:    $('recordBtnText'),
+      recordTimer:      $('recordTimer'),
       // broadcast panel (host)
       broadcastPanel:   $('broadcastPanel'),
       broadcastToggle:  $('broadcastToggle'),
@@ -378,9 +467,26 @@ class iSpeakerApp {
   }
 
   _bindEvents() {
-    this.dom.grantBtn.addEventListener('click', () => this._requestPermission());
+    // navigation
+    this.dom.backBtn.addEventListener('click',      () => this._goBack());
+    this.dom.openRouterBtn.addEventListener('click', () => this._enterRouter());
+    this.dom.settingsBtn.addEventListener('click',   () => this._openSettings());
+    this.dom.closeSettingsBtn.addEventListener('click', () => this._closeSettings());
+    this.dom.settingsOverlay.addEventListener('click', e => {
+      if (e.target === this.dom.settingsOverlay) this._closeSettings();
+    });
+
+    // settings actions
+    this.dom.resetCodeBtn.addEventListener('click', () => {
+      if (window.broadcastManager?.broadcasting) return;
+      const code = window.broadcastManager.resetCode();
+      this.dom.settingsRoomCode.textContent = code;
+    });
+
+    // router controls
+    this.dom.grantBtn.addEventListener('click',   () => this._requestPermission());
     this.dom.refreshBtn.addEventListener('click', () => this._loadDevices());
-    this.dom.startBtn.addEventListener('click', () => this._toggleRouting());
+    this.dom.startBtn.addEventListener('click',   () => this._toggleRouting());
 
     this.dom.inputGainSlider.addEventListener('input', e => {
       const v = parseFloat(e.target.value);
@@ -420,7 +526,6 @@ class iSpeakerApp {
 
     navigator.mediaDevices?.addEventListener('devicechange', () => this._loadDevices());
 
-    // Re-acquire wake lock after tab returns to foreground (OS releases it on hide)
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible' && this.running) {
         await this.wakeLock.acquire();
@@ -428,7 +533,7 @@ class iSpeakerApp {
       }
     });
 
-    // Broadcast toggle
+    // broadcast
     this.dom.broadcastToggle.addEventListener('click', () => {
       if (window.broadcastManager?.broadcasting) this._stopBroadcast();
       else this._startBroadcast();
@@ -443,18 +548,63 @@ class iSpeakerApp {
         setTimeout(() => this.dom.copyLinkBtn.textContent = 'Copy Link', 2000);
       });
     });
+
+    // recording
+    this.dom.recordBtn.addEventListener('click', () => this._toggleRecording());
   }
 
-  _setSliderFill(el) {
-    const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
-    el.style.setProperty('--sl-fill', `${pct}%`);
-  }
+  // ── Startup ──────────────────────────────────────────
 
-  _initSliders() {
-    for (const el of [this.dom.inputGainSlider, this.dom.outputGainSlider, this.dom.gateThreshold]) {
-      this._setSliderFill(el);
+  _init() {
+    const joinCode = new URLSearchParams(location.search).get('join');
+    if (joinCode) {
+      this._showScreen('listener');
+      this._initListenerMode(joinCode);
+      return;
     }
+    this._showScreen('home');
   }
+
+  _showScreen(name) {
+    this.dom.homeScreen.hidden    = name !== 'home';
+    this.dom.hostContent.hidden   = name !== 'router';
+    this.dom.listenerPanel.hidden = name !== 'listener';
+    this.dom.backBtn.hidden       = name === 'home';
+
+    const taglines = { home: 'Audio Tools', router: 'Audio Router', listener: 'Live Listener' };
+    this.dom.tagline.textContent = taglines[name] ?? '';
+  }
+
+  _goBack() {
+    if (this.running) this._stopRouting();
+    this._showScreen('home');
+  }
+
+  _enterRouter() {
+    this._showScreen('router');
+    if (!this._checkBrowserSupport()) return;
+    if (!this.devices.hasPermission) this._requestPermission();
+  }
+
+  // ── Settings ──────────────────────────────────────────
+
+  _openSettings() {
+    const code = window.broadcastManager?.persistentCode ?? '——————';
+    this.dom.settingsRoomCode.textContent = code;
+    this.dom.resetCodeBtn.disabled = window.broadcastManager?.broadcasting ?? false;
+    this.dom.settingsOverlay.hidden = false;
+    // trigger CSS transition
+    requestAnimationFrame(() => this.dom.settingsOverlay.classList.add('open'));
+  }
+
+  _closeSettings() {
+    this.dom.settingsOverlay.classList.remove('open');
+    this.dom.settingsOverlay.addEventListener('transitionend', () => {
+      this.dom.settingsOverlay.hidden = true;
+    }, { once: true });
+  }
+
+  // ── Browser / Permission ──────────────────────────────
 
   _checkBrowserSupport() {
     const issues = [];
@@ -468,7 +618,7 @@ class iSpeakerApp {
       this.dom.browserAlert.hidden = false;
       this.dom.browserAlertTxt.textContent =
         issues.join('. ') + '. Please use Chrome or Edge on HTTPS.';
-      return;
+      return false;
     }
 
     const hasOutputRouting =
@@ -481,14 +631,7 @@ class iSpeakerApp {
         'This browser cannot route to a specific output device. Use Chrome or Edge for full device selection.';
     }
 
-    // Check if this page load is a listener joining a room
-    const joinCode = new URLSearchParams(location.search).get('join');
-    if (joinCode) {
-      this._initListenerMode(joinCode);
-      return;
-    }
-
-    this._requestPermission();
+    return true;
   }
 
   async _requestPermission() {
@@ -526,6 +669,19 @@ class iSpeakerApp {
     if (prev && select.querySelector(`option[value="${prev}"]`)) select.value = prev;
   }
 
+  _setSliderFill(el) {
+    const pct = ((el.value - el.min) / (el.max - el.min)) * 100;
+    el.style.setProperty('--sl-fill', `${pct}%`);
+  }
+
+  _initSliders() {
+    for (const el of [this.dom.inputGainSlider, this.dom.outputGainSlider, this.dom.gateThreshold]) {
+      this._setSliderFill(el);
+    }
+  }
+
+  // ── Routing ──────────────────────────────────────────
+
   async _toggleRouting() {
     if (this.running) this._stopRouting();
     else await this._startRouting();
@@ -535,11 +691,6 @@ class iSpeakerApp {
     this.dom.startBtn.disabled = true;
     this._setStatus('Starting audio pipeline…', 'idle');
 
-    // Create and "touch" an audio element here, synchronously within the
-    // button-click gesture. iOS requires audio.play() to be initiated within
-    // a user gesture — after any await the gesture context is lost.
-    // play() will reject (no source yet) but the element becomes unlocked,
-    // so the real play() call inside the router will succeed.
     const unlockAudio = new Audio();
     unlockAudio.play().catch(() => {});
 
@@ -571,6 +722,7 @@ class iSpeakerApp {
   }
 
   _stopRouting() {
+    if (this.recorder.isRecording) this._stopRecording();
     if (window.broadcastManager?.broadcasting) this._stopBroadcast();
     this.router.stop();
     this.running = false;
@@ -582,28 +734,6 @@ class iSpeakerApp {
     this._updateWakeLockBadge();
   }
 
-  _registerMediaSession() {
-    if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: 'iSpeaker',
-      artist: 'Live Audio Routing Active',
-      album: 'iSpeaker — Bluetooth Audio Router',
-      artwork: [{ src: './icon.svg', sizes: 'any', type: 'image/svg+xml' }],
-    });
-    navigator.mediaSession.playbackState = 'playing';
-    // Stop button on the lock screen / notification shade maps to stopping the routing
-    navigator.mediaSession.setActionHandler('stop',  () => this._stopRouting());
-    navigator.mediaSession.setActionHandler('pause', () => this._stopRouting());
-  }
-
-  _clearMediaSession() {
-    if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.playbackState = 'none';
-    for (const action of ['stop', 'pause', 'play']) {
-      try { navigator.mediaSession.setActionHandler(action, null); } catch {}
-    }
-  }
-
   _setRunningState(isRunning, stats) {
     this.dom.startBtn.disabled = false;
     this.dom.startBtn.classList.toggle('running', isRunning);
@@ -612,6 +742,9 @@ class iSpeakerApp {
       ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
       : '<path d="M8 5v14l11-7z"/>';
 
+    // Show/hide recording button based on routing state
+    this.dom.recordBtn.hidden = !isRunning || !this.recorder.supported;
+
     // Show broadcast panel only while routing is live
     this.dom.broadcastPanel.hidden = !isRunning;
     if (!isRunning) {
@@ -619,6 +752,8 @@ class iSpeakerApp {
       this.dom.broadcastToggle.textContent = 'Start';
       this.dom.broadcastDot.className = 'status-dot dot-idle';
       this.dom.broadcastStatus.textContent = 'Not broadcasting';
+      // reset recording UI
+      this._setRecordingState(false);
     }
 
     if (isRunning) {
@@ -626,6 +761,47 @@ class iSpeakerApp {
     } else {
       this._setStatus('Stopped', 'ready');
     }
+  }
+
+  // ── Recording ────────────────────────────────────────
+
+  async _toggleRecording() {
+    if (this.recorder.isRecording) {
+      await this._stopRecording();
+    } else {
+      this._startRecording();
+    }
+  }
+
+  _startRecording() {
+    const stream = this.router.getRecordingStream();
+    if (!stream) return;
+    const started = this.recorder.start(stream);
+    if (!started) return;
+    this._setRecordingState(true);
+    this._recTimer = setInterval(() => this._updateRecordTimer(), 1000);
+  }
+
+  async _stopRecording() {
+    clearInterval(this._recTimer);
+    this._recTimer = null;
+    const blob = await this.recorder.stop();
+    this._setRecordingState(false);
+    if (blob) this.recorder.download(blob);
+  }
+
+  _setRecordingState(isRecording) {
+    this.dom.recordBtn.classList.toggle('recording', isRecording);
+    this.dom.recordBtnText.textContent = isRecording ? 'Stop & Save' : 'Record';
+    this.dom.recordTimer.hidden = !isRecording;
+    if (!isRecording) this.dom.recordTimer.textContent = '0:00';
+  }
+
+  _updateRecordTimer() {
+    const s   = this.recorder.elapsed;
+    const min = Math.floor(s / 60);
+    const sec = String(s % 60).padStart(2, '0');
+    this.dom.recordTimer.textContent = `${min}:${sec}`;
   }
 
   // ── Broadcast (host) ──────────────────────────────────
@@ -666,12 +842,9 @@ class iSpeakerApp {
   // ── Listener mode ──────────────────────────────────────
 
   _initListenerMode(code) {
-    // Switch UI to listener view
-    this.dom.hostContent.hidden  = true;
-    this.dom.listenerPanel.hidden = false;
     this.dom.listenRoomCode.textContent = code.toUpperCase();
 
-    let _session  = null; // { lid, lRef }
+    let _session  = null;
     let _audioEl  = null;
     let _listenGain = 1;
 
@@ -688,7 +861,6 @@ class iSpeakerApp {
       this.dom.listenOutputCard.hidden = false;
       setStatus('active', 'Live — audio playing');
 
-      // Enumerate output devices now that we have the stream context
       if (navigator.mediaDevices?.enumerateDevices) {
         navigator.mediaDevices.enumerateDevices().then(devs => {
           const outputs = devs.filter(d => d.kind === 'audiooutput');
@@ -706,9 +878,9 @@ class iSpeakerApp {
     };
 
     const onStatus = state => {
-      if (state === 'connected')    setStatus('active', 'Connected — waiting for audio…');
-      else if (state === 'ended')   setStatus('idle', 'Broadcast has ended');
-      else if (state === 'failed')  setStatus('error', 'Connection failed — try refreshing');
+      if (state === 'connected')         setStatus('active', 'Connected — waiting for audio…');
+      else if (state === 'ended')        setStatus('idle',  'Broadcast has ended');
+      else if (state === 'failed')       setStatus('error', 'Connection failed — try refreshing');
       else if (state === 'disconnected') setStatus('error', 'Disconnected');
     };
 
@@ -716,13 +888,11 @@ class iSpeakerApp {
       this.dom.listenJoinBtn.disabled = true;
       setStatus('idle', 'Connecting…');
 
-      // Unlock audio element synchronously inside gesture (iOS requirement)
       _audioEl = new Audio();
       _audioEl.autoplay = true;
       _audioEl.play().catch(() => {});
 
       try {
-        // Optionally get mic permission so device labels appear
         const s = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
         if (s) s.getTracks().forEach(t => t.stop());
 
@@ -735,7 +905,6 @@ class iSpeakerApp {
       }
     });
 
-    // Volume slider
     this.dom.listenVolume.addEventListener('input', e => {
       _listenGain = parseFloat(e.target.value);
       this.dom.listenVolumeVal.textContent = `${Math.round(_listenGain * 100)}%`;
@@ -744,7 +913,6 @@ class iSpeakerApp {
     });
     this._setSliderFill(this.dom.listenVolume);
 
-    // Output device picker
     this.dom.listenOutputSel.addEventListener('change', async e => {
       if (_audioEl && 'setSinkId' in _audioEl) {
         await _audioEl.setSinkId(e.target.value).catch(() => {});
@@ -765,7 +933,6 @@ class iSpeakerApp {
       if (!this.running) return;
       this.animFrame = requestAnimationFrame(tick);
 
-      // Input level (pre-gate, used also for gate decisions)
       inA.getFloatTimeDomainData(this._timeBuf);
       const inputDb = this._toDb(this._rms(this._timeBuf));
 
@@ -775,7 +942,6 @@ class iSpeakerApp {
       this.dom.inputMeterBar.style.width = `${this._dbToPct(inputDb)}%`;
       this.dom.inputDbVal.textContent    = isFinite(inputDb) ? `${inputDb.toFixed(0)} dB` : '—';
 
-      // Output level (post all processing)
       outA.getFloatTimeDomainData(this._timeBuf);
       const outputDb = this._toDb(this._rms(this._timeBuf));
 
@@ -801,6 +967,29 @@ class iSpeakerApp {
 
   _updateWakeLockBadge() {
     this.dom.wakeLockBadge.hidden = !this.wakeLock.isActive;
+  }
+
+  // ── Media Session ──────────────────────────────────────
+
+  _registerMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'iSpeaker',
+      artist: 'Live Audio Routing Active',
+      album: 'iSpeaker — Bluetooth Audio Router',
+      artwork: [{ src: './icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+    });
+    navigator.mediaSession.playbackState = 'playing';
+    navigator.mediaSession.setActionHandler('stop',  () => this._stopRouting());
+    navigator.mediaSession.setActionHandler('pause', () => this._stopRouting());
+  }
+
+  _clearMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = 'none';
+    for (const action of ['stop', 'pause', 'play']) {
+      try { navigator.mediaSession.setActionHandler(action, null); } catch {}
+    }
   }
 
   // ── Math Helpers ──────────────────────────────────────

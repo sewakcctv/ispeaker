@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>iSpeaker — Bluetooth Audio Router</title>
-  <meta name="description" content="Route live audio from any Bluetooth mic to any Bluetooth speaker with zero fuss.">
+  <title>iSpeaker</title>
+  <meta name="description" content="Audio tools for your phone. Route, broadcast and record live audio.">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0d0d1e">
   <meta name="mobile-web-app-capable" content="yes">
@@ -19,6 +19,10 @@
   <div class="app">
 
     <header class="header">
+      <button id="backBtn" class="btn btn-icon-only header-back" hidden aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+
       <div class="logo">
         <svg class="logo-icon" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -34,14 +38,42 @@
         </svg>
         <div class="logo-text-group">
           <span class="logo-text">iSpeaker</span>
-          <span class="tagline">Bluetooth Audio Router</span>
+          <span id="tagline" class="tagline">Audio Tools</span>
         </div>
       </div>
+
+      <button id="settingsBtn" class="btn btn-icon-only header-settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 00-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 00-2.282.819l-.922 1.597a1.875 1.875 0 00.432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 000 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 00-.432 2.385l.922 1.597a1.875 1.875 0 002.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 002.28-.819l.923-1.597a1.875 1.875 0 00-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 000-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 00-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 00-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 00-1.85-1.567h-1.843zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clip-rule="evenodd"/></svg>
+      </button>
     </header>
 
     <main class="main">
 
-      <!-- ── LISTENER PANEL — shown when ?join= param present ───────────────── -->
+      <!-- ── HOME SCREEN ─────────────────────────────────────────────────────── -->
+      <div id="homeScreen">
+        <p class="home-subtitle">What do you need today?</p>
+
+        <div class="tool-list">
+
+          <button class="tool-card" id="openRouterBtn">
+            <div class="tool-card-icon">
+              <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 17 L6 27 L15 27 L24.5 33 L24.5 11 L15 17 Z" fill="url(#lgi)"/>
+                <path d="M27 17 C32 19.5 32 24.5 27 27" stroke="url(#lgi)" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M31 14 C38 17.5 38 26.5 31 30" stroke="url(#lgi)" stroke-width="2.2" stroke-linecap="round" opacity="0.62"/>
+              </svg>
+            </div>
+            <div class="tool-card-info">
+              <span class="tool-card-name">Audio Router</span>
+              <span class="tool-card-desc">Route mic to any Bluetooth speaker with live processing, broadcast &amp; recording</span>
+            </div>
+            <svg class="tool-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+
+        </div>
+      </div>
+
+      <!-- ── LISTENER PANEL — shown when ?join= param present ──────────────── -->
       <div id="listenerPanel" hidden>
 
         <div class="card listen-hero">
@@ -83,11 +115,10 @@
           </div>
         </section>
 
-
       </div>
 
-      <!-- ── HOST CONTENT ───────────────────────────────────────────────────── -->
-      <div id="hostContent">
+      <!-- ── HOST CONTENT (Audio Router tool) ──────────────────────────────── -->
+      <div id="hostContent" hidden>
 
         <div id="browserAlert" class="alert alert-error" hidden>
           <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
@@ -190,12 +221,19 @@
           </div>
         </section>
 
-        <!-- Start / Stop -->
+        <!-- Start / Stop + Recording -->
         <div class="action-panel">
           <button id="startBtn" class="btn btn-start" disabled>
             <svg id="startIcon" class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             <span id="startBtnText">Start Routing</span>
           </button>
+
+          <button id="recordBtn" class="btn btn-record" hidden>
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+            <span id="recordBtnText">Record</span>
+            <span id="recordTimer" class="record-timer" hidden>0:00</span>
+          </button>
+
           <div class="status-row">
             <div id="statusDot" class="status-dot dot-idle"></div>
             <span id="statusText" class="status-text">Waiting for permissions…</span>
@@ -233,7 +271,7 @@
           </div>
         </section>
 
-        <!-- Advanced Settings (Audio Enhancement) -->
+        <!-- Advanced Settings -->
         <details class="adv-details">
           <summary class="adv-summary">
             <div class="adv-summary-inner">
@@ -271,15 +309,37 @@
           </div>
         </details>
 
-
       </div><!-- /#hostContent -->
 
     </main>
 
     <footer class="footer">
-      Works in Chrome &amp; Edge &nbsp;·&nbsp; Pair BT devices at OS level first &nbsp;·&nbsp; Install as app for best experience
+      Works in Chrome &amp; Edge &nbsp;·&nbsp; Pair BT devices at OS level first
     </footer>
 
+  </div><!-- /.app -->
+
+  <!-- ── SETTINGS SHEET ──────────────────────────────────────────────────────── -->
+  <div id="settingsOverlay" class="sheet-overlay" hidden>
+    <div class="sheet">
+      <div class="sheet-header">
+        <span class="sheet-title">Settings</span>
+        <button id="closeSettingsBtn" class="btn btn-icon-only" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body">
+        <p class="sheet-section-label">Broadcast</p>
+        <div class="settings-row card">
+          <div class="settings-row-info">
+            <span class="settings-label">Room Code</span>
+            <span id="settingsRoomCode" class="settings-code">——————</span>
+          </div>
+          <button id="resetCodeBtn" class="btn btn-sm btn-ghost">Reset</button>
+        </div>
+        <p class="settings-hint">Your room code stays the same every session so you only share it once. Reset it to revoke access from previous listeners.</p>
+      </div>
+    </div>
   </div>
 
   <!-- Firebase compat SDK (signalling only — audio goes P2P, never through Firebase) -->
