@@ -1,4 +1,4 @@
-const CACHE = 'ispeaker-v11';
+const CACHE = 'ispeaker-v12';
 const BASE = new URL('./', self.registration.scope).href;
 const ASSETS = [
   BASE,
