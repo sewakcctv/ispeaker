@@ -301,7 +301,9 @@ class RecordingManager {
   }
 
   _bestMime() {
-    for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']) {
+    // Prefer mp4/m4a — plays natively on iOS and Android.
+    // WebM is only a fallback for desktop Chrome where mp4 encoding isn't supported.
+    for (const t of ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) {
       if (MediaRecorder.isTypeSupported?.(t)) return t;
     }
     return '';
